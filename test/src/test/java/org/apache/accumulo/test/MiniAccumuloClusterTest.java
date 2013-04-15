@@ -17,20 +17,27 @@
 package org.apache.accumulo.test;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map.Entry;
 import java.util.UUID;
 
+import org.apache.accumulo.core.client.AccumuloException;
+import org.apache.accumulo.core.client.AccumuloSecurityException;
+import org.apache.accumulo.core.client.BatchScanner;
 import org.apache.accumulo.core.client.BatchWriter;
 import org.apache.accumulo.core.client.BatchWriterConfig;
 import org.apache.accumulo.core.client.Connector;
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.Scanner;
+import org.apache.accumulo.core.client.TableExistsException;
+import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.ZooKeeperInstance;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Mutation;
+import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.LongCombiner;
 import org.apache.accumulo.core.iterators.user.SummingCombiner;
@@ -38,10 +45,12 @@ import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.security.ColumnVisibility;
 import org.apache.accumulo.core.security.TablePermission;
 import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.io.Text;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -49,26 +58,28 @@ import org.junit.rules.TemporaryFolder;
 public class MiniAccumuloClusterTest {
   
   public static TemporaryFolder folder = new TemporaryFolder();
-  
   private static MiniAccumuloCluster accumulo;
+  private static final String OLD_TEST_TABLE_NAME = "bar";
+  private static final String NEW_TEST_TABLE_NAME = "foo";
+  
+  public Connector conn;
   
   @BeforeClass
   public static void setupMiniCluster() throws Exception {
-    
     folder.create();
-    
     Logger.getLogger("org.apache.zookeeper").setLevel(Level.ERROR);
     
     accumulo = new MiniAccumuloCluster(folder.getRoot(), "superSecret");
-    
     accumulo.start();
-    
+  }
+  
+  @Before
+  public void setup() throws AccumuloException, AccumuloSecurityException {
+	  conn = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector("root", new PasswordToken("superSecret"));
   }
   
   @Test(timeout = 30000)
   public void test() throws Exception {
-    Connector conn = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector("root", new PasswordToken("superSecret"));
-    
     conn.tableOperations().create("table1");
     
     conn.securityOperations().createLocalUser("user1", new PasswordToken("pass1"));
@@ -137,9 +148,6 @@ public class MiniAccumuloClusterTest {
   
   @Test(timeout = 60000)
   public void testPerTableClasspath() throws Exception {
-    
-    Connector conn = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector("root", new PasswordToken("superSecret"));
-    
     conn.tableOperations().create("table2");
     
     File jarFile = File.createTempFile("iterator", ".jar");
@@ -178,13 +186,48 @@ public class MiniAccumuloClusterTest {
     
     conn.instanceOperations().removeProperty(Property.VFS_CONTEXT_CLASSPATH_PROPERTY.getKey() + "cx1");
     conn.tableOperations().delete("table2");
-    
+  }
+  
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testAudit() throws AccumuloException, AccumuloSecurityException, TableExistsException, TableNotFoundException {
+	  Authorizations auths = new Authorizations("private", "public");
+	  conn.securityOperations().changeUserAuthorizations("root", auths);
+	  conn.tableOperations().create(OLD_TEST_TABLE_NAME);
+	  conn.tableOperations().rename(OLD_TEST_TABLE_NAME, NEW_TEST_TABLE_NAME);
+	  BatchWriter bw = conn.createBatchWriter(NEW_TEST_TABLE_NAME, new BatchWriterConfig());
+	  Mutation m = new Mutation("r1");
+	  m.put("cf1", "cq1", "v1");
+	  m.put("cf1", "cq2", "v3");
+	  bw.addMutation(m);
+	  bw.close();
+	  conn.tableOperations().clone(NEW_TEST_TABLE_NAME, OLD_TEST_TABLE_NAME, true, Collections.EMPTY_MAP, Collections.EMPTY_SET);
+	  conn.tableOperations().delete(OLD_TEST_TABLE_NAME);
+	  Scanner scanner = conn.createScanner(NEW_TEST_TABLE_NAME, auths);
+	  for (Entry<Key,Value> entry : scanner) {
+		  System.out.println(entry.getKey() + " " + entry.getValue());
+	  }
+	  BatchScanner bs = conn.createBatchScanner(NEW_TEST_TABLE_NAME, auths, 1);
+	  bs.fetchColumn(new Text("cf1"), new Text("cq1"));
+	  bs.setRanges(Arrays.asList(new Range("r1", "r~")));
+	  
+	  for (Entry<Key,Value> entry : bs) {
+	    System.out.println(entry.getKey() + " " + entry.getValue());
+	  }
+	  
+	  conn.tableOperations().deleteRows(NEW_TEST_TABLE_NAME, new Text("r1"), new Text("r~"));
+	  
+	  // When testing bulk import dir must be empty
+	  // conn.tableOperations().importDirectory(NEW_TEST_TABLE_NAME, "/tmp/jkthen1", "/tmp/jkthen2", true);
+	  
+	  conn.tableOperations().offline(NEW_TEST_TABLE_NAME);
+	  conn.tableOperations().delete(NEW_TEST_TABLE_NAME);
   }
   
   @AfterClass
   public static void tearDownMiniCluster() throws Exception {
     accumulo.stop();
-    folder.delete();
+//    folder.delete();
   }
   
 }
