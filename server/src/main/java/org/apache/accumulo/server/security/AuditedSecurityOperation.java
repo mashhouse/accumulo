@@ -57,7 +57,8 @@ public class AuditedSecurityOperation extends SecurityOperation {
   }
   
   public static final Logger log = Logger.getLogger(AuditedSecurityOperation.class);
-  
+  public static final Logger audit = Logger.getLogger("Audit");
+
   public static synchronized SecurityOperation getInstance() {
     String instanceId = HdfsZooInstance.getInstance().getInstanceID();
     return getInstance(instanceId, false);
@@ -94,59 +95,50 @@ public class AuditedSecurityOperation extends SecurityOperation {
   private static boolean shouldAudit(TCredentials credentials) {
     return log.isEnabledFor(AuditLevel.AUDIT) && !credentials.getPrincipal().equals(SecurityConstants.SYSTEM_PRINCIPAL);
   }
-  
+
+
+  /*
+    Three auditing methods try to capture the 4 states we might have here.
+    logError is in response to a thrown exception, the operation failed (perhaps due to insufficient privs, or some other reason)
+    audit(credentials, template, args) is a successful operation
+    audit(credentials, permitted, template, args) is a privileges check that is either permitted or denied. We don't know
+        if the operation went on to be successful or not at this point, we would have to go digging through loads of other code to find it.
+     */
   private void logError(TCredentials credentials, ThriftSecurityException ex, String template, Object... args) {
-    log.warn("Error: authenticated operation failed: " + credentials.getPrincipal() + ": " + String.format(template, args), ex);
+    log.warn("operation: failed; user: " + credentials.getPrincipal() + "; " + String.format(template, args), ex);
   }
   
   private void audit(TCredentials credentials, String template, Object... args) {
     if (shouldAudit(credentials)) {
-      log.log(AuditLevel.AUDIT, "Using credentials " + credentials.getPrincipal() + ": " + String.format(template, args));
+      audit.info("operation: success; user: " + credentials.getPrincipal() + ": " + String.format(template, args));
     }
   }
-  
-  private void audit(TCredentials credentials, boolean opSuccess, String template, Object... args) {
+
+  private void audit(TCredentials credentials, boolean permitted, String template, Object... args) {
     if (shouldAudit(credentials)) {
-      String prefix = opSuccess ? "Successful" : "Failed";
-      log.log(AuditLevel.AUDIT, prefix + " operation using credentials " + credentials.getPrincipal() + ": " + String.format(template, args));
+      String prefix = permitted ? "permitted" : "denied";
+      audit.info("operation: " + prefix + "; user: " + credentials.getPrincipal() + "; " + String.format(template, args));
     }
   }
-  
-  @Override
-  public Authorizations getUserAuthorizations(TCredentials credentials, String user) throws ThriftSecurityException {
-    try {
-      Authorizations result = super.getUserAuthorizations(credentials, user);
-      audit(credentials, "got authorizations for %s", user);
-      return result;
-    } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "getting authorizations for %s", user);
-      throw ex;
-    }
-  }
-  
-  @Override
-  public Authorizations getUserAuthorizations(TCredentials credentials) throws ThriftSecurityException {
-    try {
-      return getUserAuthorizations(credentials, credentials.getPrincipal());
-    } catch (ThriftSecurityException ex) {
-      throw ex;
-    }
-  }
-  
+
+
+
   @Override
   public boolean canScan(TCredentials credentials, String tableId, TRange range, List<TColumn> columns, List<IterInfo> ssiList, Map<String,Map<String,String>> ssio, List<ByteBuffer> authorizations) throws ThriftSecurityException {
     if (shouldAudit(credentials, tableId)) {
       Range convertedRange = new Range(range);
       List<Column> convertedColumns = Translator.translate(columns, new Translator.TColumnTranslator());
       String tableName = getTableName(tableId);
+
+      String auditTemplate = "action: scan; targetTable: %s; targetTableID: %s; authorizations: %s; range: %s; columns: %s; iterators: %s; iteratorOptions: %s;";
       
       try {
         boolean canScan = super.canScan(credentials, tableId);
-        audit(credentials, canScan, "checked scan with auths %s on table %s[%s] with range %s and columns %s, and an iterator list %s with options %s ", getAuthString(authorizations), tableName, tableId, convertedRange, convertedColumns, ssiList, ssio);
+        audit(credentials, canScan, auditTemplate, getAuthString(authorizations), tableName, tableId, convertedRange, convertedColumns, ssiList, ssio);
         
         return canScan;
       } catch (ThriftSecurityException ex) {
-        logError(credentials, ex, "checking scan with auths %s on table %s[%s] with range %s and columns %s, and an iterator list %s with options %s ", getAuthString(authorizations), tableName, tableId, convertedRange, convertedColumns, ssiList, ssio);
+        logError(credentials, ex, auditTemplate, getAuthString(authorizations), tableName, tableId, convertedRange, convertedColumns, ssiList, ssio);
         throw ex;
       }
     } else {
@@ -161,14 +153,16 @@ public class AuditedSecurityOperation extends SecurityOperation {
       Map<KeyExtent, List<Range>> convertedBatch = Translator.translate(tbatch, new Translator.TKeyExtentTranslator(), new Translator.ListTranslator(new Translator.TRangeTranslator()));
       List<Column> convertedColumns = Translator.translate(tcolumns, new Translator.TColumnTranslator());
       String tableName = getTableName(tableId);
+      String auditTemplate = "action: scan; targetTable: %s; targetTableID: %s; authorizations: %s; range: %s; columns: %s; iterators: %s; iteratorOptions: %s;";
 
-      try {
+
+        try {
         boolean canScan = super.canScan(credentials, tableId);
-        audit(credentials, canScan, "checked scan with auths %s on table %s[%s] with range %s and columns %s, and an iterator list %s with options %s ", getAuthString(authorizations), tableName, tableId, convertedBatch, convertedColumns, ssiList, ssio);
+        audit(credentials, canScan, auditTemplate, getAuthString(authorizations), tableName, tableId, convertedBatch, convertedColumns, ssiList, ssio);
         
         return canScan;
       } catch (ThriftSecurityException ex) {
-        logError(credentials, ex, "checking scan with auths %s on table %s[%s] with range %s and columns %s, and an iterator list %s with options %s ", getAuthString(authorizations), tableName, tableId, convertedBatch, convertedColumns, ssiList, ssio);
+        logError(credentials, ex, auditTemplate, getAuthString(authorizations), tableName, tableId, convertedBatch, convertedColumns, ssiList, ssio);
         throw ex;
       }
     } else {
@@ -180,45 +174,49 @@ public class AuditedSecurityOperation extends SecurityOperation {
   
   @Override
   public void changeAuthorizations(TCredentials credentials, String user, Authorizations authorizations) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: change authorizations; targetUser: %s; authorizations: %s";
+      try {
       super.changeAuthorizations(credentials, user, authorizations);
-      audit(credentials, "changed authorizations for %s to %s", user, authorizations);
+      audit(credentials, auditTemplate, user, authorizations);
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "changing authorizations for %s to %s", user, authorizations);
+      logError(credentials, ex, auditTemplate, user, authorizations);
       throw ex;
     }
   }
   
   @Override
   public void changePassword(TCredentials credentials, TCredentials newInfo) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: changePassword; targetUser: %s;";
+      try {
       super.changePassword(credentials, newInfo);
-      audit(credentials, "changed password for %s", newInfo.getPrincipal());
+      audit(credentials, auditTemplate, newInfo.getPrincipal());
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "changing password for %s", newInfo.getPrincipal());
+      logError(credentials, ex, auditTemplate, newInfo.getPrincipal());
       throw ex;
     }
   }
   
   @Override
   public void createUser(TCredentials credentials, TCredentials newUser, Authorizations authorizations) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: createUser; targetUser: %s; Authorizations: %s;";
+      try {
       super.createUser(credentials, newUser, authorizations);
-      audit(credentials, "created user %s with %s", newUser.getPrincipal(), authorizations);
+      audit(credentials, auditTemplate, newUser.getPrincipal(), authorizations);
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "creating user %s with %s", newUser.getPrincipal(), authorizations);
+      logError(credentials, ex, auditTemplate, newUser.getPrincipal(), authorizations);
       throw ex;
     }
   }
   
   @Override
   public boolean canCreateTable(TCredentials c, String tableName) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: createTable; targetTable: %s;";
+      try {
       boolean result = super.canCreateTable(c);
-      audit(c, result, "checked can create table %s", tableName);
+      audit(c, result, auditTemplate, tableName);
       return result;
     } catch (ThriftSecurityException ex) {
-      logError(c, ex, "checking can create table %s", tableName);
+      logError(c, ex, auditTemplate, tableName);
       throw ex;
     }
   }
@@ -226,25 +224,26 @@ public class AuditedSecurityOperation extends SecurityOperation {
   @Override
   public boolean canDeleteTable(TCredentials c, String tableId) throws ThriftSecurityException {
     String tableName = getTableName(tableId);
-    
+    String auditTemplate = "action: deleteTable; targetTable: %s; TargetTableID: %s;";
     try {
       boolean result = super.canDeleteTable(c, tableId);
-      audit(c, result, "checked can delete table %s[%s]", tableName, tableId);
+      audit(c, result, auditTemplate, tableName, tableId);
       return result;
     } catch (ThriftSecurityException ex) {
-      logError(c, ex, "checking can create table %s[%s]", tableName, tableId);
+      logError(c, ex, auditTemplate, tableName, tableId);
       throw ex;
     }
   }
   
   @Override
   public boolean canRenameTable(TCredentials c, String tableId, String oldTableName, String newTableName) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: renameTable; targetTable: %s; targetTableID: %s; newTableName: %s;";
+      try {
       boolean result = super.canRenameTable(c, tableId, oldTableName, newTableName);
-      audit(c, result, "checked can rename table %s[%s] to %s", oldTableName, tableId, newTableName);
+      audit(c, result, auditTemplate, oldTableName, tableId, newTableName);
       return result;
     } catch (ThriftSecurityException ex) {
-      logError(c, ex, "checking can rename table %s[%s] to %s", oldTableName, tableId, newTableName);
+      logError(c, ex, auditTemplate, oldTableName, tableId, newTableName);
       throw ex;
     }
   }
@@ -252,155 +251,134 @@ public class AuditedSecurityOperation extends SecurityOperation {
   @Override
   public boolean canCloneTable(TCredentials c, String tableId, String tableName) throws ThriftSecurityException {
     String oldTableName = getTableName(tableId);
-    
+    String auditTemplate = "action: cloneTable; targetTable: %s; targetTableID: %s; newTableName: %s";
     try {
       boolean result = super.canCloneTable(c, tableId, tableName);
-      audit(c, result, "checked can clone table %s[%s] to table %s", oldTableName, tableId, tableName);
+      audit(c, result, auditTemplate, oldTableName, tableId, tableName);
       return result;
     } catch (ThriftSecurityException ex) {
-      logError(c, ex, "checking can clone table %s[%s] to table %s", oldTableName, tableId, tableName);
+      logError(c, ex, auditTemplate, oldTableName, tableId, tableName);
       throw ex;
     }
   }
   
   @Override
   public boolean canDeleteRange(TCredentials c, String tableId, String tableName, Text startRow, Text endRow) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: deleteData; targetTab;e: %s; targetTableID: %s; range: %s-%s;";
+      try {
       boolean result = super.canDeleteRange(c, tableId, tableName, startRow, endRow);
-      audit(c, result, "checked can delete range in table %s[%s] from start %s to end %s", tableName, tableId, startRow.toString(), endRow.toString());
+      audit(c, result, auditTemplate, tableName, tableId, startRow.toString(), endRow.toString());
       return result;
     } catch (ThriftSecurityException ex) {
-      logError(c, ex, "checking can delete range in table %s[%s] from start %s to end %s", tableName, tableId, startRow.toString(), endRow.toString());
+      logError(c, ex, auditTemplate, tableName, tableId, startRow.toString(), endRow.toString());
       throw ex;
     }
   }
   
   @Override
   public boolean canBulkImport(TCredentials c, String tableId, String tableName, String dir, String failDir) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: bulkImport; targetTable: %s; targetTableID: %s; dataDir: %s; failDir: %s;";
+      try {
       boolean result = super.canBulkImport(c, tableId);
-      audit(c, result, "checked can bulk import into table %s[%s] from dir %s and fail dir %s", tableName, tableId, dir, failDir);
+      audit(c, result, auditTemplate, tableName, tableId, dir, failDir);
       return result;
     } catch (ThriftSecurityException ex) {
-      logError(c, ex, "checking can bulk import into table %s[%s] from dir %s and fail dir %s", tableName, tableId, dir, failDir);
+      logError(c, ex, auditTemplate, tableName, tableId, dir, failDir);
       throw ex;
     }
   }
   
   @Override
   public boolean canImport(TCredentials credentials, String tableName, String importDir) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: import; targetTable: %s; dataDir: %s;";
+
+      try {
       boolean result = super.canImport(credentials, tableName, importDir);
-      audit(credentials, result, "checked can import into table %s from dir %s", tableName, importDir);
+      audit(credentials, result, auditTemplate, tableName, importDir);
       return result;
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "checking can import into table %s from dir %s", tableName, importDir);
+      logError(credentials, ex, auditTemplate, tableName, importDir);
       throw ex;
     }
   }
   
   @Override
   public boolean canExport(TCredentials credentials, String tableId, String tableName, String exportDir) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: export; targetTable: %s; targetTableID: %s; dataDir: %s;";
+
+      try {
       boolean result = super.canExport(credentials, tableId, tableName, exportDir);
-      audit(credentials, result, "checked can export from table %s[%s] into dir %s", tableName, tableId, exportDir);
+      audit(credentials, result, auditTemplate, tableName, tableId, exportDir);
       return result;
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "checking can export from table %s[%s] into dir %s", tableName, tableId, exportDir);
+      logError(credentials, ex, auditTemplate, tableName, tableId, exportDir);
       throw ex;
     }
   }
   
   @Override
   public void dropUser(TCredentials credentials, String user) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: dropUser; targetUser: %s;";
+      try {
       super.dropUser(credentials, user);
-      audit(credentials, "dropped user %s", user);
+      audit(credentials, auditTemplate, user);
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "dropping user %s", user);
+      logError(credentials, ex, auditTemplate, user);
       throw ex;
     }
   }
   
   @Override
   public void grantSystemPermission(TCredentials credentials, String user, SystemPermission permission) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: grantSystemPermission; permission:%s; targetUser: %s;";
+      try {
       super.grantSystemPermission(credentials, user, permission);
-      audit(credentials, "granted system permission %s for %s", permission, user);
+      audit(credentials, auditTemplate, permission, user);
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "granting system permission %s for %s", permission, user);
+      logError(credentials, ex, auditTemplate, permission, user);
       throw ex;
     }
   }
   
   @Override
   public void grantTablePermission(TCredentials credentials, String user, String table, TablePermission permission) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: grantTablePermission; permission: %s; targetTable: %s; targetUser: %s;";
+
+      try {
       super.grantTablePermission(credentials, user, table, permission);
-      audit(credentials, "granted table permission %s on table %s for %s", permission, table, user);
+      audit(credentials, auditTemplate, permission, table, user);
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "granting table permission %s on table %s for %s", permission, table, user);
+      logError(credentials, ex, auditTemplate, permission, table, user);
       throw ex;
     }
   }
   
   @Override
   public void revokeSystemPermission(TCredentials credentials, String user, SystemPermission permission) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: revokeSystemPermission; permission:%s; targetUser: %s;";
+
+      try {
       super.revokeSystemPermission(credentials, user, permission);
-      audit(credentials, "revoked system permission %s for %s", permission, user);
+      audit(credentials, auditTemplate, permission, user);
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "revoking system permission %s for %s", permission, user);
+      logError(credentials, ex, auditTemplate, permission, user);
       throw ex;
     }
   }
   
   @Override
   public void revokeTablePermission(TCredentials credentials, String user, String table, TablePermission permission) throws ThriftSecurityException {
-    try {
+      String auditTemplate = "action: revokeTablePermission; permission: %s; targetTable: %s; targetUser: %s;";
+
+      try {
       super.revokeTablePermission(credentials, user, table, permission);
-      audit(credentials, "revoked table permission %s on table %s for %s", permission, table, user);
+      audit(credentials, auditTemplate, permission, table, user);
     } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "revoking table permission %s on table %s for %s", permission, table, user);
+      logError(credentials, ex, auditTemplate, permission, table, user);
       throw ex;
     }
   }
-  
-  @Override
-  public boolean hasSystemPermission(TCredentials credentials, String user, SystemPermission permission) throws ThriftSecurityException {
-    try {
-      boolean result = super.hasSystemPermission(credentials, user, permission);
-      audit(credentials, result, "checked system permission %s for %s", permission, user);
-      return result;
-    } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "checking system permission %s for %s", permission, user);
-      throw ex;
-    }
-  }
-  
-  @Override
-  public boolean hasTablePermission(TCredentials credentials, String user, String table, TablePermission permission) throws ThriftSecurityException {
-    try {
-      boolean result = super.hasTablePermission(credentials, user, table, permission);
-      audit(credentials, result, "checked table permission %s on table %s for %s", permission, table, user);
-      return result;
-    } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "checking table permission %s on table %s for %s", permission, table, user);
-      throw ex;
-    }
-  }
-  
-  @Override
-  public Set<String> listUsers(TCredentials credentials) throws ThriftSecurityException {
-    try {
-      Set<String> result = super.listUsers(credentials);
-      audit(credentials, "listed users");
-      return result;
-    } catch (ThriftSecurityException ex) {
-      logError(credentials, ex, "listing users");
-      throw ex;
-    }
-  }
+
   
   
   @Override

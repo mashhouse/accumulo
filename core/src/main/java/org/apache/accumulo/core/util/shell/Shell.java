@@ -158,7 +158,7 @@ import org.apache.log4j.Logger;
  */
 public class Shell extends ShellOptions {
   public static final Logger log = Logger.getLogger(Shell.class);
-  private static final Logger audit = Logger.getLogger(Shell.class.getName() + ".audit");
+  public static final Logger audit = Logger.getLogger("ShellAudit");
   
   public static final String CHARSET = "ISO-8859-1";
   public static final int NO_FIXED_ARG_LENGTH_CHECK = -1;
@@ -428,6 +428,13 @@ public class Shell extends ShellOptions {
     String input;
     if (isVerbose())
       printInfo();
+      // TODO this doesn't work
+      //robtallis
+      if (System.getenv("ACCUMULO_LOG_DIR") != null)
+          System.setProperty("org.apache.accumulo.core.dir.log", System.getenv("ACCUMULO_LOG_DIR"));
+      else
+          System.setProperty("org.apache.accumulo.core.dir.log", System.getenv("ACCUMULO_HOME") + "/logs/");
+
     
     String home = System.getProperty("HOME");
     if (home == null)
@@ -521,7 +528,7 @@ public class Shell extends ShellOptions {
   }
   
   public void execCommand(String input, boolean ignoreAuthTimeout, boolean echoPrompt) throws IOException {
-    audit.log(AuditLevel.AUDIT, getDefaultPrompt() + input);
+    audit.info(getDefaultPrompt() + input);
     if (echoPrompt) {
       reader.printString(getDefaultPrompt());
       reader.printString(input);
