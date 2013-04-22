@@ -134,7 +134,7 @@ public class AuditedSecurityOperation extends SecurityOperation {
       
       try {
         boolean canScan = super.canScan(credentials, tableId);
-        audit(credentials, canScan, auditTemplate, getAuthString(authorizations), tableName, tableId, convertedRange, convertedColumns, ssiList, ssio);
+        audit(credentials, canScan, auditTemplate,  tableName, tableId, getAuthString(authorizations), convertedRange, convertedColumns, ssiList, ssio);
         
         return canScan;
       } catch (ThriftSecurityException ex) {
@@ -158,7 +158,7 @@ public class AuditedSecurityOperation extends SecurityOperation {
 
         try {
         boolean canScan = super.canScan(credentials, tableId);
-        audit(credentials, canScan, auditTemplate, getAuthString(authorizations), tableName, tableId, convertedBatch, convertedColumns, ssiList, ssio);
+        audit(credentials, canScan, auditTemplate, tableName, tableId, getAuthString(authorizations), convertedBatch, convertedColumns, ssiList, ssio);
         
         return canScan;
       } catch (ThriftSecurityException ex) {
