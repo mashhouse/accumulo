@@ -40,21 +40,6 @@
      </layout>	    
   </appender>
 
-    <!--  Write out Audit info to an Audit file -->
-    <appender name="Audit" class="org.apache.log4j.RollingFileAppender">
-        <param name="File"           value="${org.apache.accumulo.core.dir.log}/${org.apache.accumulo.core.application}_${org.apache.accumulo.core.ip.localhost.hostname}.audit"/>
-        <param name="MaxFileSize"    value="1000MB"/>
-        <param name="MaxBackupIndex" value="10"/>
-        <param name="Threshold"      value="INFO"/>
-        <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%d{ISO8601} [%-8c{2}] %-5p: %m%n"/>
-        </layout>
-    </appender>
-    <logger name="Audit"  additivity="false">
-        <appender-ref ref="Audit" />
-        <level value="ALL"/>
-    </logger>
-
   <!-- Send all logging data to a centralized logger -->
   <appender name="N1" class="org.apache.log4j.net.SocketAppender">
      <param name="remoteHost"     value="${org.apache.accumulo.core.host.log}"/>
