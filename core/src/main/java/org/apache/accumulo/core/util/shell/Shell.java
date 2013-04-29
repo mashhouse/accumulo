@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -48,6 +47,7 @@ import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.ZooKeeperInstance;
 import org.apache.accumulo.core.client.mock.MockInstance;
 import org.apache.accumulo.core.client.security.tokens.AuthenticationToken;
+import org.apache.accumulo.core.client.security.tokens.AuthenticationToken.Properties;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.conf.Property;
@@ -55,7 +55,6 @@ import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.data.thrift.TConstraintViolationSummary;
 import org.apache.accumulo.core.security.AuditLevel;
-import org.apache.accumulo.core.security.handler.Authenticator;
 import org.apache.accumulo.core.tabletserver.thrift.ConstraintViolationException;
 import org.apache.accumulo.core.trace.DistributedTrace;
 import org.apache.accumulo.core.util.BadArgumentException;
@@ -246,11 +245,8 @@ public class Shell extends ShellOptions {
     String sysUser = System.getProperty("user.name");
     if (sysUser == null)
       sysUser = "root";
-    @SuppressWarnings("deprecation")
-    String user = cl.getOptionValue(usernameOption.getOpt());
-    String principal = cl.getOptionValue(principalOption.getOpt(), sysUser);
-    
-    @SuppressWarnings("deprecation")
+    String user = cl.getOptionValue(usernameOption.getOpt(), sysUser);
+
     String passw = cl.getOptionValue(passwOption.getOpt(), null);
     tabCompletion = !cl.hasOption(tabCompleteOption.getLongOpt());
     String[] loginOptions = cl.getOptionValues(loginOption.getOpt());
@@ -260,14 +256,28 @@ public class Shell extends ShellOptions {
     
     // process default parameters if unspecified
     try {
-      if (loginOptions != null) {
+      if (loginOptions != null && !cl.hasOption(tokenOption.getOpt()))
+        throw new IllegalArgumentException("Must supply '-" + tokenOption.getOpt() + "' option with '-" + loginOption.getOpt() + "' option");
+      
+      if (loginOptions == null && cl.hasOption(tokenOption.getOpt()))
+        throw new IllegalArgumentException("Must supply '-" + loginOption.getOpt() + "' option with '-" + tokenOption.getOpt() + "' option");
+
+      if (passw != null && cl.hasOption(tokenOption.getOpt()))
+        throw new IllegalArgumentException("Can not supply '-" + passwOption.getOpt() + "' option with '-" + tokenOption.getOpt() + "' option");
+
+      if (user == null)
+        throw new MissingArgumentException(usernameOption);
+
+      if (loginOptions != null && cl.hasOption(tokenOption.getOpt())) {
         Properties props = new Properties();
         for (String loginOption : loginOptions)
           for (String lo : loginOption.split(",")) {
             String[] split = lo.split("=");
             props.put(split[0], split[1]);
           }
-        this.token = instance.getAuthenticator().login(principal, props);
+        
+        this.token = Class.forName(cl.getOptionValue(tokenOption.getOpt())).asSubclass(AuthenticationToken.class).newInstance();
+        this.token.init(props);
       }
 
       if (!cl.hasOption(fakeOption.getLongOpt())) {
@@ -287,39 +297,18 @@ public class Shell extends ShellOptions {
       }
       
       if (this.token == null) {
-        List<Set<Authenticator.AuthProperty>> loginList = instance.getAuthenticator().getProperties();
-        int loginMethod = 0;
-        if (loginList.size() > 1) {
-          System.out.println("Please select your preferred login method: ");
-          int i = 0;
-          for (Set<Authenticator.AuthProperty> set : loginList) {
-            System.out.println(i + " " + set);
-            i++;
-          }
-          loginMethod = Integer.parseInt(reader.readLine());
-        }
-        Set<Authenticator.AuthProperty> chosenMethod = loginList.get(loginMethod);
-        Properties props = new Properties();
-        for (Authenticator.AuthProperty prop : chosenMethod) {
-          String value;
-          if (prop.getMask())
-            value = readMaskedLine("Enter " + prop + ": ", '*');
-          else
-            value = reader.readLine("Enter " + prop + ": ");
-          props.setProperty(prop.getKey(), value);
-        }
-        this.token = instance.getAuthenticator().login(principal, props);
+        passw = readMaskedLine("Password: ", '*');
+        if (passw != null)
+          this.token = new PasswordToken(passw);
       }
+      
       if (this.token == null) {
         reader.printNewline();
-        configError = true;
-        return true;
+        throw new MissingArgumentException("No password or token option supplied");
       } // user canceled
       
       this.setTableName("");
       this.principal = user;
-      if (this.principal == null)
-        this.principal = principal;
       connector = instance.getConnector(this.principal, token);
       
     } catch (Exception e) {

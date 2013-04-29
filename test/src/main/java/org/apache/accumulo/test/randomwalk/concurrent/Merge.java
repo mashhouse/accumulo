@@ -16,11 +16,12 @@
  */
 package org.apache.accumulo.test.randomwalk.concurrent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
-import java.util.TreeSet;
 
+import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.client.Connector;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.accumulo.core.client.TableOfflineException;
@@ -38,22 +39,19 @@ public class Merge extends Test {
     
     @SuppressWarnings("unchecked")
     List<String> tableNames = (List<String>) state.get("tables");
-    
+    tableNames = new ArrayList<String>(tableNames);
+    tableNames.add(Constants.METADATA_TABLE_NAME);
     String tableName = tableNames.get(rand.nextInt(tableNames.size()));
-    
-    // TODO need to sometimes do null start and end ranges
-    
-    TreeSet<Text> range = new TreeSet<Text>();
-    range.add(new Text(String.format("%016x", rand.nextLong() & 0x7fffffffffffffffl)));
-    range.add(new Text(String.format("%016x", rand.nextLong() & 0x7fffffffffffffffl)));
+        
+    List<Text> range = ConcurrentFixture.generateRange(rand);
     
     try {
-      conn.tableOperations().merge(tableName, range.first(), range.last());
-      log.debug("merged " + tableName);
+      conn.tableOperations().merge(tableName, range.get(0), range.get(1));
+      log.debug("merged " + tableName + " from " + range.get(0) + " to " + range.get(1));
     } catch (TableOfflineException toe) {
-      log.debug("merge " + tableName + " failed, table is not online");
+      log.debug("merge " + tableName + " from " + range.get(0) + " to " + range.get(1) + " failed, table is not online");
     } catch (TableNotFoundException tne) {
-      log.debug("merge " + tableName + " failed, doesnt exist");
+      log.debug("merge " + tableName + " from " + range.get(0) + " to " + range.get(1) + " failed, doesnt exist");
     }
     
   }

@@ -143,6 +143,7 @@ public class GarbageCollectWriteAheadLogs {
             Path path = new Path(Constants.getWalDirectory(conf), filename);
             if (trash == null || !trash.moveToTrash(path))
               fs.delete(path, true);
+            status.currentLog.deleted++;
           } catch (FileNotFoundException ex) {
             // ignored
           } catch (IOException ex) {
@@ -159,6 +160,7 @@ public class GarbageCollectWriteAheadLogs {
               Path path = new Path(serverPath, filename);
               if (trash == null || !trash.moveToTrash(path))
                 fs.delete(path, true);
+              status.currentLog.deleted++;
             } catch (FileNotFoundException ex) {
               // ignored
             } catch (IOException ex) {
@@ -187,15 +189,21 @@ public class GarbageCollectWriteAheadLogs {
     
     for (String sortedWALog : sortedWALogs) {
       log.debug("Removing sorted WAL " + sortedWALog);
+      Path swalog = new Path(recoveryDir, sortedWALog);
       try {
-        Path swalog = new Path(recoveryDir, sortedWALog);
-        if (trash == null || (fs.exists(swalog) && !trash.moveToTrash(swalog))) {
+        if (trash == null || !trash.moveToTrash(swalog)) {
           fs.delete(swalog, true);
         }
       } catch (FileNotFoundException ex) {
         // ignored
       } catch (IOException ioe) {
-        log.error("Unable to delete sorted walog " + sortedWALog + ": " + ioe);
+        try {
+          if (fs.exists(swalog)) {
+            log.error("Unable to delete sorted walog " + sortedWALog + ": " + ioe);
+          }
+        } catch (IOException ex) {
+          log.error("Unable to check for the existence of " + sortedWALog, ex);
+        }
       }
     }
 

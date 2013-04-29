@@ -20,7 +20,10 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import javax.security.auth.DestroyFailedException;
 
@@ -52,7 +55,7 @@ public class PasswordToken implements AuthenticationToken {
    * Password tokens created with this constructor will store the password as UTF-8 bytes.
    */
   public PasswordToken(CharSequence password) {
-    this.password = password.toString().getBytes(Constants.UTF8);
+    setPassword(CharBuffer.wrap(password));
   }
   
   /**
@@ -118,5 +121,36 @@ public class PasswordToken implements AuthenticationToken {
     } catch (CloneNotSupportedException e) {
       throw new RuntimeException(e);
     }
+  }
+  
+  private void setPassword(CharBuffer charBuffer) {
+    // encode() kicks back a C-string, which is not compatible with the old passwording system
+    ByteBuffer bb = Constants.UTF8.encode(charBuffer);
+    // create array using byter buffer length
+    this.password = new byte[bb.remaining()];
+    bb.get(this.password);
+    if (!bb.isReadOnly()) {
+      // clear byte buffer
+      bb.rewind();
+      while (bb.remaining() > 0) {
+        bb.put((byte) 0);
+      }
+    }
+  }
+
+  @Override
+  public void init(Properties properties) {
+    if (properties.containsKey("password")){
+      setPassword(CharBuffer.wrap(properties.get("password")));
+    }else
+      throw new IllegalArgumentException("Missing 'password' property");
+  }
+
+  
+  @Override
+  public Set<TokenProperty> getProperties() {
+    Set<TokenProperty> internal = new LinkedHashSet<TokenProperty>();
+    internal.add(new TokenProperty("password", "the password for the principal", true));
+    return internal;
   }
 }

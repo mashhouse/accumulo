@@ -192,10 +192,11 @@ public class ClientServiceHandler implements ClientService.Iface {
     
     Map<String,String> result = new HashMap<String,String>();
     for (Entry<String,String> entry : conf) {
-      // TODO: do we need to send any instance information?
       if (entry.getKey().equals(Property.INSTANCE_SECRET.getKey()))
         continue;
       if (entry.getKey().toLowerCase().contains("password"))
+        continue;
+      if (entry.getKey().startsWith(Property.TRACE_TOKEN_PROPERTY_PREFIX.getKey()))
         continue;
       result.put(entry.getKey(), entry.getValue());
     }
@@ -269,10 +270,5 @@ public class ClientServiceHandler implements ClientService.Iface {
       log.warn("Error checking object types", e);
       return false;
     }
-  }
-  
-  @Override
-  public String getAuthenticatorClassName() throws TException {
-    return security.getTokenLoginClass();
   }
 }

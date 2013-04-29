@@ -19,6 +19,8 @@ package org.apache.accumulo.core.client.security.tokens;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import javax.security.auth.DestroyFailedException;
 
@@ -53,5 +55,13 @@ public class NullToken implements AuthenticationToken {
   
   public boolean equals(Object obj) {
     return obj instanceof NullToken;
+  }
+  
+  @Override
+  public void init(Properties properties) {}
+  
+  @Override
+  public Set<TokenProperty> getProperties() {
+    return Collections.emptySet();
   }
 }

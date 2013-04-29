@@ -46,12 +46,12 @@ public class MergeCommand extends Command {
       force = true;
     }
     if (cl.hasOption(allOpt.getOpt())) {
-      force = true;
+      all = true;
     }
     if (cl.hasOption(sizeOpt.getOpt())) {
       size = AccumuloConfiguration.getMemoryInBytes(cl.getOptionValue(sizeOpt.getOpt()));
     }
-    if (startRow == null && endRow == null && size < 0 && all) {
+    if (startRow == null && endRow == null && size < 0 && !all) {
       shellState.getReader().flushConsole();
       String line = shellState.getReader().readLine("Merge the entire table { " + tableName + " } into one tablet (yes|no)? ");
       if (line == null)

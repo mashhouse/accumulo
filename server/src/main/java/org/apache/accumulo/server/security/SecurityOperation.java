@@ -102,7 +102,7 @@ public class SecurityOperation {
   
   /**
    * 
-   * @Deprecated not for client use
+   * @deprecated not for client use
    */
   public SecurityOperation(String instanceId) {
     ZKUserPath = Constants.ZROOT + "/" + instanceId + "/users";
@@ -635,9 +635,5 @@ public class SecurityOperation {
   public boolean canImport(TCredentials credentials, String tableName, String importDir) throws ThriftSecurityException {
     authenticate(credentials);
     return hasSystemPermission(credentials.getPrincipal(), SystemPermission.CREATE_TABLE, false);
-  }
-  
-  public String getTokenLoginClass() {
-    return authenticator.getTokenLoginClass();
   }
 }

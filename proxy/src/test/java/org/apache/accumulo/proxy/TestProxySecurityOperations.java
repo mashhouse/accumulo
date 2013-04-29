@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
 
+import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.util.ByteBufferUtil;
 import org.apache.accumulo.proxy.thrift.SystemPermission;
 import org.apache.accumulo.proxy.thrift.TablePermission;
@@ -54,7 +55,8 @@ public class TestProxySecurityOperations {
   @BeforeClass
   public static void setup() throws Exception {
     Properties prop = new Properties();
-    prop.setProperty("org.apache.accumulo.proxy.ProxyServer.useMockInstance", "true");
+    prop.setProperty("useMockInstance", "true");
+    prop.put("tokenClass", PasswordToken.class.getName());
     
     proxy = Proxy.createProxyServer(Class.forName("org.apache.accumulo.proxy.thrift.AccumuloProxy"), Class.forName("org.apache.accumulo.proxy.ProxyServer"),
         port, TCompactProtocol.Factory.class, prop);

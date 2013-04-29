@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.TreeMap;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 import org.apache.accumulo.core.Constants;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
@@ -107,19 +107,15 @@ public class MetadataBulkLoadFilterTest {
       
       @Override
       public SortedKeyValueIterator<Key,Value> reserveMapFileReader(String mapFileName) throws IOException {
-        // TODO Auto-generated method stub
         return null;
       }
       
       @Override
       public void registerSideChannel(SortedKeyValueIterator<Key,Value> iter) {
-        // TODO Auto-generated method stub
-        
       }
       
       @Override
       public boolean isFullMajorCompaction() {
-        // TODO Auto-generated method stub
         return false;
       }
       

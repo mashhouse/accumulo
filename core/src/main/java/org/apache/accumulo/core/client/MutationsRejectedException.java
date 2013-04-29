@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.accumulo.core.client.impl.thrift.SecurityErrorCode;
+import org.apache.accumulo.core.client.security.SecurityErrorCode;
 import org.apache.accumulo.core.data.ConstraintViolationSummary;
 import org.apache.accumulo.core.data.KeyExtent;
 
@@ -70,7 +70,7 @@ public class MutationsRejectedException extends AccumuloException {
    * @return the internal list of authorization failures
    * @deprecated since 1.5, see {@link #getAuthorizationFailuresMap()}
    */
-  List<KeyExtent> getAuthorizationFailures() {
+  public List<KeyExtent> getAuthorizationFailures() {
     return new ArrayList<KeyExtent>(af.keySet());
   }
   

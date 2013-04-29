@@ -28,14 +28,15 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 
+import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.iterators.user.RegExFilter;
 import org.apache.accumulo.proxy.thrift.BatchScanOptions;
 import org.apache.accumulo.proxy.thrift.ColumnUpdate;
-import org.apache.accumulo.proxy.thrift.ScanColumn;
 import org.apache.accumulo.proxy.thrift.IteratorSetting;
 import org.apache.accumulo.proxy.thrift.Key;
 import org.apache.accumulo.proxy.thrift.KeyValue;
 import org.apache.accumulo.proxy.thrift.Range;
+import org.apache.accumulo.proxy.thrift.ScanColumn;
 import org.apache.accumulo.proxy.thrift.ScanOptions;
 import org.apache.accumulo.proxy.thrift.ScanResult;
 import org.apache.accumulo.proxy.thrift.TimeType;
@@ -59,7 +60,8 @@ public class TestProxyReadWrite {
   @BeforeClass
   public static void setup() throws Exception {
     Properties prop = new Properties();
-    prop.setProperty("org.apache.accumulo.proxy.ProxyServer.useMockInstance", "true");
+    prop.setProperty("useMockInstance", "true");
+    prop.put("tokenClass", PasswordToken.class.getName());
     
     proxy = Proxy.createProxyServer(Class.forName("org.apache.accumulo.proxy.thrift.AccumuloProxy"), Class.forName("org.apache.accumulo.proxy.ProxyServer"),
         port, TCompactProtocol.Factory.class, prop);

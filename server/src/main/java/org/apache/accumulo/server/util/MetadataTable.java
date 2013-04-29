@@ -468,7 +468,7 @@ public class MetadataTable extends org.apache.accumulo.core.util.MetadataTable {
     
     String tableId = extent.getTableId().toString();
     
-    // TODO could use batch writer,would need to handle failure and retry like update does
+    // TODO could use batch writer,would need to handle failure and retry like update does - ACCUMULO-1294
     for (String pathToRemove : datafilesToDelete)
       update(credentials, createDeleteMutation(tableId, pathToRemove));
   }
@@ -479,11 +479,15 @@ public class MetadataTable extends org.apache.accumulo.core.util.MetadataTable {
   
   public static Mutation createDeleteMutation(String tableId, String pathToRemove) {
     Mutation delFlag;
+    String prefix = Constants.METADATA_DELETE_FLAG_PREFIX;
+    if (tableId.equals(Constants.METADATA_TABLE_ID))
+      prefix = Constants.METADATA_DELETE_FLAG_FOR_METADATA_PREFIX;
+
     if (pathToRemove.startsWith("../"))
-      delFlag = new Mutation(new Text(Constants.METADATA_DELETE_FLAG_PREFIX + pathToRemove.substring(2)));
+      delFlag = new Mutation(new Text(prefix + pathToRemove.substring(2)));
     else
-      delFlag = new Mutation(new Text(Constants.METADATA_DELETE_FLAG_PREFIX + "/" + tableId + pathToRemove));
-    
+      delFlag = new Mutation(new Text(prefix + "/" + tableId + pathToRemove));
+
     delFlag.put(EMPTY_TEXT, EMPTY_TEXT, new Value(new byte[] {}));
     return delFlag;
   }
@@ -1225,5 +1229,29 @@ public class MetadataTable extends org.apache.accumulo.core.util.MetadataTable {
     m.putDelete(EMPTY_TEXT, EMPTY_TEXT);
     
     update(SecurityConstants.getSystemCredentials(), m);
+  }
+
+  public static void moveMetaDeleteMarkers(Instance instance, TCredentials creds) {
+    // move delete markers from the normal delete keyspace to the root tablet delete keyspace if the files are for the !METADATA table
+    Scanner scanner = new ScannerImpl(instance, creds, Constants.METADATA_TABLE_ID, Constants.NO_AUTHS);
+    scanner.setRange(new Range(Constants.METADATA_DELETES_KEYSPACE));
+    for (Entry<Key,Value> entry : scanner) {
+      String row = entry.getKey().getRow().toString();
+      if (row.startsWith(Constants.METADATA_DELETE_FLAG_PREFIX + "/" + Constants.METADATA_TABLE_ID)) {
+        String filename = row.substring(Constants.METADATA_DELETE_FLAG_PREFIX.length());
+        // add the new entry first
+        log.info("Moving " + filename + " marker to the root tablet");
+        Mutation m = new Mutation(Constants.METADATA_DELETE_FLAG_FOR_METADATA_PREFIX + filename);
+        m.put(new byte[]{}, new byte[]{}, new byte[]{});
+        update(creds, m);
+        // remove the old entry
+        m = new Mutation(entry.getKey().getRow());
+        m.putDelete(new byte[]{}, new byte[]{});
+        update(creds, m);
+      } else {
+        break;
+      }
+    }
+    
   }
 }
