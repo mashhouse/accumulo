@@ -205,14 +205,14 @@ public class MiniAccumuloClusterTest {
 	  conn.tableOperations().delete(OLD_TEST_TABLE_NAME);
 	  Scanner scanner = conn.createScanner(NEW_TEST_TABLE_NAME, auths);
 	  for (Entry<Key,Value> entry : scanner) {
-		  System.out.println(entry.getKey() + " " + entry.getValue());
+		  System.out.println("Scanner row: " + entry.getKey() + " " + entry.getValue());
 	  }
 	  BatchScanner bs = conn.createBatchScanner(NEW_TEST_TABLE_NAME, auths, 1);
 	  bs.fetchColumn(new Text("cf1"), new Text("cq1"));
 	  bs.setRanges(Arrays.asList(new Range("r1", "r~")));
 	  
 	  for (Entry<Key,Value> entry : bs) {
-	    System.out.println(entry.getKey() + " " + entry.getValue());
+	    System.out.println("BatchScanner row: " + entry.getKey() + " " + entry.getValue());
 	  }
 	  
 	  conn.tableOperations().deleteRows(NEW_TEST_TABLE_NAME, new Text("r1"), new Text("r~"));
@@ -227,6 +227,8 @@ public class MiniAccumuloClusterTest {
   @AfterClass
   public static void tearDownMiniCluster() throws Exception {
     accumulo.stop();
+
+      // Comment this out to have a look at the logs, they will be in /tmp/junit*
 //    folder.delete();
   }
   

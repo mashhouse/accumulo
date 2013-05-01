@@ -92,10 +92,10 @@ public class AuditedSecurityOperation extends SecurityOperation {
     return !tableId.equals(Constants.METADATA_TABLE_ID) && shouldAudit(credentials);
   }
   
+  // Is INFO the right level to check? Do we even need that check?
   private static boolean shouldAudit(TCredentials credentials) {
-    return log.isEnabledFor(AuditLevel.AUDIT) && !credentials.getPrincipal().equals(SecurityConstants.SYSTEM_PRINCIPAL);
+    return log.isEnabledFor(AuditLevel.INFO) && !credentials.getPrincipal().equals(SecurityConstants.SYSTEM_PRINCIPAL);
   }
-
 
   /*
     Three auditing methods try to capture the 4 states we might have here.

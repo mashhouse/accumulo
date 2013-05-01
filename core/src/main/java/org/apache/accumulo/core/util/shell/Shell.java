@@ -510,7 +510,7 @@ public class Shell extends ShellOptions {
   }
   
   public void execCommand(String input, boolean ignoreAuthTimeout, boolean echoPrompt) throws IOException {
-    audit.log(AuditLevel.AUDIT, getDefaultPrompt() + input);
+    audit.log(Level.INFO, getDefaultPrompt() + input);
     if (echoPrompt) {
       reader.printString(getDefaultPrompt());
       reader.printString(input);
