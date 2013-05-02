@@ -57,7 +57,7 @@ public class AuditedSecurityOperation extends SecurityOperation {
   }
   
   public static final Logger log = Logger.getLogger(AuditedSecurityOperation.class);
-  public static final Logger audit = Logger.getLogger("Audit");
+  public static final Logger audit = Logger.getLogger(Constants.AUDITLOG);
 
   public static synchronized SecurityOperation getInstance() {
     String instanceId = HdfsZooInstance.getInstance().getInstanceID();
@@ -264,7 +264,7 @@ public class AuditedSecurityOperation extends SecurityOperation {
   
   @Override
   public boolean canDeleteRange(TCredentials c, String tableId, String tableName, Text startRow, Text endRow) throws ThriftSecurityException {
-      String auditTemplate = "action: deleteData; targetTab;e: %s; targetTableID: %s; range: %s-%s;";
+      String auditTemplate = "action: deleteData; targetTable: %s; targetTableID: %s; range: %s-%s;";
       try {
       boolean result = super.canDeleteRange(c, tableId, tableName, startRow, endRow);
       audit(c, result, auditTemplate, tableName, tableId, startRow.toString(), endRow.toString());

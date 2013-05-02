@@ -16,22 +16,10 @@
  */
 package org.apache.accumulo.test;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.ServerSocket;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Random;
 
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.util.UtilWaitThread;
@@ -98,8 +86,7 @@ public class MiniAccumuloCluster {
           in.close();
         }
         
-      } catch (IOException e) {
-      }
+      } catch (IOException e) {}
     }
   }
   
@@ -120,6 +107,10 @@ public class MiniAccumuloCluster {
   
   private MiniAccumuloConfig config;
   private Process[] tabletServerProcesses;
+  
+  public File getLogDir() {
+    return logDir;
+  }
   
   static public int getRandomFreePort() {
     Random r = new Random();
@@ -158,7 +149,8 @@ public class MiniAccumuloCluster {
     
     ArrayList<String> argList = new ArrayList<String>();
     
-    argList.addAll(Arrays.asList(javaBin, "-cp", classpath, "-Xmx128m", "-XX:+UseConcMarkSweepGC", "-XX:CMSInitiatingOccupancyFraction=75", Main.class.getName(), className));
+    argList.addAll(Arrays.asList(javaBin, "-cp", classpath, "-Xmx128m", "-XX:+UseConcMarkSweepGC", "-XX:CMSInitiatingOccupancyFraction=75",
+        Main.class.getName(), className));
     
     argList.addAll(Arrays.asList(args));
     
@@ -266,15 +258,9 @@ public class MiniAccumuloCluster {
     appendProp(fileWriter, Property.TRACE_PORT, "" + getRandomFreePort(), siteConfig);
     // since there is a small amount of memory, check more frequently for majc... setting may not be needed in 1.5
     appendProp(fileWriter, Property.TSERV_MAJC_DELAY, "3", siteConfig);
-    String cp = System.getenv("ACCUMULO_HOME")+"/lib/.*.jar,"+
-        "$ZOOKEEPER_HOME/zookeeper[^.].*.jar,"+
-        "$HADOOP_HOME/[^.].*.jar,"+
-        "$HADOOP_HOME/lib/[^.].*.jar,"+
-        "$HADOOP_PREFIX/share/hadoop/common/.*.jar," +
-        "$HADOOP_PREFIX/share/hadoop/common/lib/.*.jar," +
-        "$HADOOP_PREFIX/share/hadoop/hdfs/.*.jar," +
-        "$HADOOP_PREFIX/share/hadoop/mapreduce/.*.jar"
-        ; 
+    String cp = System.getenv("ACCUMULO_HOME") + "/lib/.*.jar," + "$ZOOKEEPER_HOME/zookeeper[^.].*.jar," + "$HADOOP_HOME/[^.].*.jar,"
+        + "$HADOOP_HOME/lib/[^.].*.jar," + "$HADOOP_PREFIX/share/hadoop/common/.*.jar," + "$HADOOP_PREFIX/share/hadoop/common/lib/.*.jar,"
+        + "$HADOOP_PREFIX/share/hadoop/hdfs/.*.jar," + "$HADOOP_PREFIX/share/hadoop/mapreduce/.*.jar";
     appendProp(fileWriter, Property.GENERAL_CLASSPATHS, cp, siteConfig);
     appendProp(fileWriter, Property.GENERAL_DYNAMIC_CLASSPATHS, libDir.getAbsolutePath(), siteConfig);
     
