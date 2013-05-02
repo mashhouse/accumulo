@@ -34,7 +34,6 @@ import org.apache.accumulo.core.data.thrift.IterInfo;
 import org.apache.accumulo.core.data.thrift.TColumn;
 import org.apache.accumulo.core.data.thrift.TKeyExtent;
 import org.apache.accumulo.core.data.thrift.TRange;
-import org.apache.accumulo.core.security.AuditLevel;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.security.SystemPermission;
 import org.apache.accumulo.core.security.TablePermission;
@@ -45,6 +44,7 @@ import org.apache.accumulo.server.security.handler.Authenticator;
 import org.apache.accumulo.server.security.handler.Authorizor;
 import org.apache.accumulo.server.security.handler.PermissionHandler;
 import org.apache.hadoop.io.Text;
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 /**
@@ -94,7 +94,7 @@ public class AuditedSecurityOperation extends SecurityOperation {
   
   // Is INFO the right level to check? Do we even need that check?
   private static boolean shouldAudit(TCredentials credentials) {
-    return log.isEnabledFor(AuditLevel.INFO) && !credentials.getPrincipal().equals(SecurityConstants.SYSTEM_PRINCIPAL);
+    return log.isEnabledFor(Level.INFO) && !credentials.getPrincipal().equals(SecurityConstants.SYSTEM_PRINCIPAL);
   }
 
   /*
