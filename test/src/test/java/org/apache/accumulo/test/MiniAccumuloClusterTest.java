@@ -39,17 +39,17 @@ import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 public class MiniAccumuloClusterTest {
-  
 
-  
-  public static TemporaryFolder folder = new TemporaryFolder();
-  protected static MiniAccumuloCluster accumulo;
-  protected static final String OLD_TEST_TABLE_NAME = "bar";
-  protected static final String NEW_TEST_TABLE_NAME = "foo";
-  
-  public Connector conn;
 
-    public static TemporaryFolder getFolder() {
+
+  private static TemporaryFolder folder = new TemporaryFolder();
+  private static MiniAccumuloCluster accumulo;
+  private static final String OLD_TEST_TABLE_NAME = "bar";
+  private static final String NEW_TEST_TABLE_NAME = "foo";
+
+  private Connector conn;
+
+  private static TemporaryFolder getFolder() {
         return folder;
     }
   

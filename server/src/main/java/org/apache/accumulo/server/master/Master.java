@@ -893,7 +893,7 @@ public class Master implements LiveTServerSet.Listener, TableObserver, CurrentSt
           final String tableId = checkTableId(tableName, TableOperation.ONLINE);
           checkNotMetadataTable(tableName, TableOperation.ONLINE);
           
-          if (!security.canOnlineOfflineTable(c, tableId))
+          if (!security.canOnlineOfflineTable(c, tableId, op))
             throw new ThriftSecurityException(c.getPrincipal(), SecurityErrorCode.PERMISSION_DENIED);
           
           fate.seedTransaction(opid, new TraceRepo<Master>(new ChangeTableState(tableId, TableOperation.ONLINE)), autoCleanup);
@@ -904,7 +904,7 @@ public class Master implements LiveTServerSet.Listener, TableObserver, CurrentSt
           final String tableId = checkTableId(tableName, TableOperation.OFFLINE);
           checkNotMetadataTable(tableName, TableOperation.OFFLINE);
           
-          if (!security.canOnlineOfflineTable(c, tableId))
+          if (!security.canOnlineOfflineTable(c, tableId, op))
             throw new ThriftSecurityException(c.getPrincipal(), SecurityErrorCode.PERMISSION_DENIED);
           
           fate.seedTransaction(opid, new TraceRepo<Master>(new ChangeTableState(tableId, TableOperation.OFFLINE)), autoCleanup);
