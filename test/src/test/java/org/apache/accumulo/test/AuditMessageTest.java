@@ -113,55 +113,55 @@ public class AuditMessageTest {
       conn.securityOperations().dropLocalUser(AUDIT_USER_2);
   }
 
-  @SuppressWarnings("unchecked")
-  @Test
-  public void testAudit() throws AccumuloException, AccumuloSecurityException, TableExistsException, TableNotFoundException, IOException {
-    
-    File logDir = accumulo.getLogDir();
-    
-    Authorizations auths = new Authorizations("private", "public");
-    conn.securityOperations().changeUserAuthorizations("root", auths);
-    conn.tableOperations().create(OLD_TEST_TABLE_NAME);
-    conn.tableOperations().rename(OLD_TEST_TABLE_NAME, NEW_TEST_TABLE_NAME);
-    BatchWriter bw = conn.createBatchWriter(NEW_TEST_TABLE_NAME, new BatchWriterConfig());
-    Mutation m = new Mutation("r1");
-    m.put("cf1", "cq1", "v1");
-    m.put("cf1", "cq2", "v3");
-    bw.addMutation(m);
-    bw.close();
-    conn.tableOperations().clone(NEW_TEST_TABLE_NAME, OLD_TEST_TABLE_NAME, true, Collections.EMPTY_MAP, Collections.EMPTY_SET);
-    conn.tableOperations().delete(OLD_TEST_TABLE_NAME);
-    Scanner scanner = conn.createScanner(NEW_TEST_TABLE_NAME, auths);
-    for (Map.Entry<Key,Value> entry : scanner) {
-      System.out.println("Scanner row: " + entry.getKey() + " " + entry.getValue());
-    }
-    BatchScanner bs = conn.createBatchScanner(NEW_TEST_TABLE_NAME, auths, 1);
-    bs.fetchColumn(new Text("cf1"), new Text("cq1"));
-    bs.setRanges(Arrays.asList(new Range("r1", "r~")));
-    
-    for (Map.Entry<Key,Value> entry : bs) {
-      System.out.println("BatchScanner row: " + entry.getKey() + " " + entry.getValue());
-    }
-    
-    conn.tableOperations().deleteRows(NEW_TEST_TABLE_NAME, new Text("r1"), new Text("r~"));
-    
-    // When testing bulk import dir must be empty
-    // conn.tableOperations().importDirectory(NEW_TEST_TABLE_NAME, "/tmp/jkthen1", "/tmp/jkthen2", true);
-    
-    conn.tableOperations().offline(NEW_TEST_TABLE_NAME);
-    conn.tableOperations().delete(NEW_TEST_TABLE_NAME);
-    
-    System.out.println("Start of captured audit messages");
-    ArrayList<String> auditMessages = getAuditMessages(logDir, null);
-    for (String s : auditMessages) {
-      System.out.println(s);
-    }
-    System.out.println("End of captured audit messages");
-    lastAuditTimestamp = (auditMessages.get(auditMessages.size() - 1)).substring(0, 23);
-  }
+//  @SuppressWarnings("unchecked")
+//  @Test
+//  public void testAudit() throws AccumuloException, AccumuloSecurityException, TableExistsException, TableNotFoundException, IOException {
+//
+//    File logDir = accumulo.getLogDir();
+//
+//    Authorizations auths = new Authorizations("private", "public");
+//    conn.securityOperations().changeUserAuthorizations("root", auths);
+//    conn.tableOperations().create(OLD_TEST_TABLE_NAME);
+//    conn.tableOperations().rename(OLD_TEST_TABLE_NAME, NEW_TEST_TABLE_NAME);
+//    BatchWriter bw = conn.createBatchWriter(NEW_TEST_TABLE_NAME, new BatchWriterConfig());
+//    Mutation m = new Mutation("r1");
+//    m.put("cf1", "cq1", "v1");
+//    m.put("cf1", "cq2", "v3");
+//    bw.addMutation(m);
+//    bw.close();
+//    conn.tableOperations().clone(NEW_TEST_TABLE_NAME, OLD_TEST_TABLE_NAME, true, Collections.EMPTY_MAP, Collections.EMPTY_SET);
+//    conn.tableOperations().delete(OLD_TEST_TABLE_NAME);
+//    Scanner scanner = conn.createScanner(NEW_TEST_TABLE_NAME, auths);
+//    for (Map.Entry<Key,Value> entry : scanner) {
+//      System.out.println("Scanner row: " + entry.getKey() + " " + entry.getValue());
+//    }
+//    BatchScanner bs = conn.createBatchScanner(NEW_TEST_TABLE_NAME, auths, 1);
+//    bs.fetchColumn(new Text("cf1"), new Text("cq1"));
+//    bs.setRanges(Arrays.asList(new Range("r1", "r~")));
+//
+//    for (Map.Entry<Key,Value> entry : bs) {
+//      System.out.println("BatchScanner row: " + entry.getKey() + " " + entry.getValue());
+//    }
+//
+//    conn.tableOperations().deleteRows(NEW_TEST_TABLE_NAME, new Text("r1"), new Text("r~"));
+//
+//    // When testing bulk import dir must be empty
+//    // conn.tableOperations().importDirectory(NEW_TEST_TABLE_NAME, "/tmp/jkthen1", "/tmp/jkthen2", true);
+//
+//    conn.tableOperations().offline(NEW_TEST_TABLE_NAME);
+//    conn.tableOperations().delete(NEW_TEST_TABLE_NAME);
+//
+//    System.out.println("Start of captured audit messages");
+//    ArrayList<String> auditMessages = getAuditMessages(logDir, null);
+//    for (String s : auditMessages) {
+//      System.out.println(s);
+//    }
+//    System.out.println("End of captured audit messages");
+//    lastAuditTimestamp = (auditMessages.get(auditMessages.size() - 1)).substring(0, 23);
+//  }
 
   @Test
-  public void testTableOperationsAudits() throws AccumuloException, AccumuloSecurityException, TableExistsException, TableNotFoundException, IOException {
+  public void testTableOperationsAudits() throws AccumuloException, AccumuloSecurityException, TableExistsException, TableNotFoundException, IOException, InterruptedException {
 
     File logDir = accumulo.getLogDir();
 
@@ -178,7 +178,10 @@ public class AuditMessageTest {
     auditConnector.tableOperations().offline(NEW_TEST_TABLE_NAME);
     auditConnector.tableOperations().delete(NEW_TEST_TABLE_NAME);
 
-    // Grab the audit messages
+    // Sleep to allow MiniAccumuloCluster.LogWriter to flush
+    Thread.sleep(2000);
+
+        // Grab the audit messages
     System.out.println("Start of captured audit messages");
     ArrayList<String> auditMessages = getAuditMessages(logDir, lastAuditTimestamp);
     for (String s : auditMessages) {
