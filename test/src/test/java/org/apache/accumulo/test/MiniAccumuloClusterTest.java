@@ -182,7 +182,7 @@ public class MiniAccumuloClusterTest {
     accumulo.stop();
     
     // Comment this out to have a look at the logs, they will be in /tmp/junit*
-    // folder.delete();
+    //folder.delete();
   }
   
 }

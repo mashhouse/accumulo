@@ -41,7 +41,7 @@ public class MiniAccumuloCluster {
   private static final String INSTANCE_SECRET = "DONTTELL";
   private static final String INSTANCE_NAME = "miniInstance";
   
-  private static class LogWriter extends Thread {
+  protected static class LogWriter extends Thread {
     private BufferedReader in;
     private BufferedWriter out;
     
@@ -102,9 +102,17 @@ public class MiniAccumuloCluster {
   private Process masterProcess;
   
   private int zooKeeperPort;
-  
+
+  public List<LogWriter> getLogWriters() {
+    return logWriters;
+  }
+
   private List<LogWriter> logWriters = new ArrayList<MiniAccumuloCluster.LogWriter>();
-  
+
+  public MiniAccumuloConfig getConfig() {
+    return config;
+  }
+
   private MiniAccumuloConfig config;
   private Process[] tabletServerProcesses;
   
