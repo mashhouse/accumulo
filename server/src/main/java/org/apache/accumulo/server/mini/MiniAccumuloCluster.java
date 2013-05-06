@@ -14,18 +14,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.accumulo.test;
+package org.apache.accumulo.server.mini;
 
-import java.io.*;
-import java.net.ServerSocket;
-import java.util.*;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
 
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.util.UtilWaitThread;
 import org.apache.accumulo.server.master.Master;
 import org.apache.accumulo.server.tabletserver.TabletServer;
 import org.apache.accumulo.server.util.Initialize;
+import org.apache.accumulo.server.util.PortUtils;
 import org.apache.accumulo.server.util.time.SimpleTimer;
 import org.apache.accumulo.start.Main;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
@@ -115,38 +127,12 @@ public class MiniAccumuloCluster {
 
   private MiniAccumuloConfig config;
   private Process[] tabletServerProcesses;
-  
+
   public File getLogDir() {
     return logDir;
   }
   
-  static public int getRandomFreePort() {
-    Random r = new Random();
-    int count = 0;
-    
-    while (count < 13) {
-      int port = r.nextInt((1 << 16) - 1024) + 1024;
-      
-      ServerSocket so = null;
-      try {
-        so = new ServerSocket(port);
-        so.setReuseAddress(true);
-        return port;
-      } catch (IOException ioe) {
-        
-      } finally {
-        if (so != null)
-          try {
-            so.close();
-          } catch (IOException e) {}
-      }
-      
-    }
-    
-    throw new RuntimeException("Unable to find port");
-  }
-  
-  Process exec(Class<? extends Object> clazz, String... args) throws IOException {
+  private Process exec(Class<? extends Object> clazz, String... args) throws IOException {
     String javaHome = System.getProperty("java.home");
     String javaBin = javaHome + File.separator + "bin" + File.separator + "java";
     String classpath = System.getProperty("java.class.path");
@@ -157,8 +143,7 @@ public class MiniAccumuloCluster {
     
     ArrayList<String> argList = new ArrayList<String>();
     
-    argList.addAll(Arrays.asList(javaBin, "-cp", classpath, "-Xmx128m", "-XX:+UseConcMarkSweepGC", "-XX:CMSInitiatingOccupancyFraction=75",
-        Main.class.getName(), className));
+    argList.addAll(Arrays.asList(javaBin, "-cp", classpath, "-Xmx128m", "-XX:+UseConcMarkSweepGC", "-XX:CMSInitiatingOccupancyFraction=75", Main.class.getName(), className));
     
     argList.addAll(Arrays.asList(args));
     
@@ -240,7 +225,7 @@ public class MiniAccumuloCluster {
     walogDir.mkdirs();
     libDir.mkdirs();
     
-    zooKeeperPort = getRandomFreePort();
+    zooKeeperPort = PortUtils.getRandomFreePort();
     
     File siteFile = new File(confDir, "accumulo-site.xml");
     
@@ -253,8 +238,8 @@ public class MiniAccumuloCluster {
     appendProp(fileWriter, Property.INSTANCE_DFS_DIR, accumuloDir.getAbsolutePath(), siteConfig);
     appendProp(fileWriter, Property.INSTANCE_ZK_HOST, "localhost:" + zooKeeperPort, siteConfig);
     appendProp(fileWriter, Property.INSTANCE_SECRET, INSTANCE_SECRET, siteConfig);
-    appendProp(fileWriter, Property.MASTER_CLIENTPORT, "" + getRandomFreePort(), siteConfig);
-    appendProp(fileWriter, Property.TSERV_CLIENTPORT, "" + getRandomFreePort(), siteConfig);
+    appendProp(fileWriter, Property.MASTER_CLIENTPORT, "" + PortUtils.getRandomFreePort(), siteConfig);
+    appendProp(fileWriter, Property.TSERV_CLIENTPORT, "" + PortUtils.getRandomFreePort(), siteConfig);
     appendProp(fileWriter, Property.TSERV_PORTSEARCH, "true", siteConfig);
     appendProp(fileWriter, Property.LOGGER_DIR, walogDir.getAbsolutePath(), siteConfig);
     appendProp(fileWriter, Property.TSERV_DATACACHE_SIZE, "10M", siteConfig);
@@ -263,12 +248,18 @@ public class MiniAccumuloCluster {
     appendProp(fileWriter, Property.TSERV_WALOG_MAX_SIZE, "100M", siteConfig);
     appendProp(fileWriter, Property.TSERV_NATIVEMAP_ENABLED, "false", siteConfig);
     appendProp(fileWriter, Property.TRACE_TOKEN_PROPERTY_PREFIX + ".password", config.getRootPassword(), siteConfig);
-    appendProp(fileWriter, Property.TRACE_PORT, "" + getRandomFreePort(), siteConfig);
+    appendProp(fileWriter, Property.TRACE_PORT, "" + PortUtils.getRandomFreePort(), siteConfig);
     // since there is a small amount of memory, check more frequently for majc... setting may not be needed in 1.5
     appendProp(fileWriter, Property.TSERV_MAJC_DELAY, "3", siteConfig);
-    String cp = System.getenv("ACCUMULO_HOME") + "/lib/.*.jar," + "$ZOOKEEPER_HOME/zookeeper[^.].*.jar," + "$HADOOP_HOME/[^.].*.jar,"
-        + "$HADOOP_HOME/lib/[^.].*.jar," + "$HADOOP_PREFIX/share/hadoop/common/.*.jar," + "$HADOOP_PREFIX/share/hadoop/common/lib/.*.jar,"
-        + "$HADOOP_PREFIX/share/hadoop/hdfs/.*.jar," + "$HADOOP_PREFIX/share/hadoop/mapreduce/.*.jar";
+    String cp = System.getenv("ACCUMULO_HOME")+"/lib/.*.jar,"+
+        "$ZOOKEEPER_HOME/zookeeper[^.].*.jar,"+
+        "$HADOOP_HOME/[^.].*.jar,"+
+        "$HADOOP_HOME/lib/[^.].*.jar,"+
+        "$HADOOP_PREFIX/share/hadoop/common/.*.jar," +
+        "$HADOOP_PREFIX/share/hadoop/common/lib/.*.jar," +
+        "$HADOOP_PREFIX/share/hadoop/hdfs/.*.jar," +
+        "$HADOOP_PREFIX/share/hadoop/mapreduce/.*.jar"
+        ; 
     appendProp(fileWriter, Property.GENERAL_CLASSPATHS, cp, siteConfig);
     appendProp(fileWriter, Property.GENERAL_DYNAMIC_CLASSPATHS, libDir.getAbsolutePath(), siteConfig);
     

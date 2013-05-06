@@ -50,6 +50,7 @@ import org.apache.accumulo.core.file.FileSKVWriter;
 import org.apache.accumulo.core.iterators.DevNull;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
 import org.apache.accumulo.core.iterators.user.SummingCombiner;
+import org.apache.accumulo.core.iterators.user.VersioningIterator;
 import org.apache.accumulo.core.util.UtilWaitThread;
 import org.apache.accumulo.examples.simple.constraints.NumericValueConstraint;
 import org.apache.accumulo.proxy.thrift.AccumuloProxy.Client;
@@ -79,7 +80,8 @@ import org.apache.accumulo.proxy.thrift.TimeType;
 import org.apache.accumulo.proxy.thrift.UnknownScanner;
 import org.apache.accumulo.proxy.thrift.UnknownWriter;
 import org.apache.accumulo.proxy.thrift.WriterOptions;
-import org.apache.accumulo.test.MiniAccumuloCluster;
+import org.apache.accumulo.server.mini.MiniAccumuloCluster;
+import org.apache.accumulo.server.util.PortUtils;
 import org.apache.accumulo.test.functional.SlowIterator;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -145,7 +147,7 @@ public class SimpleTest {
     protocolClass = getRandomProtocol();
     System.out.println(protocolClass.getName());
     
-    proxyPort = MiniAccumuloCluster.getRandomFreePort();
+    proxyPort = PortUtils.getRandomFreePort();
     proxyServer = Proxy.createProxyServer(org.apache.accumulo.proxy.thrift.AccumuloProxy.class, org.apache.accumulo.proxy.ProxyServer.class, proxyPort,
         protocolClass, props);
     thread = new Thread() {
@@ -304,6 +306,10 @@ public class SimpleTest {
     } catch (TableNotFoundException ex) {}
     try {
       client.updateAndFlush(creds, doesNotExist, new HashMap<ByteBuffer,List<ColumnUpdate>>());
+      fail("exception not thrown");
+    } catch (TableNotFoundException ex) {}
+    try {
+      client.testTableClassLoad(creds, doesNotExist, VersioningIterator.class.getName(), SortedKeyValueIterator.class.getName());
       fail("exception not thrown");
     } catch (TableNotFoundException ex) {}
   }
@@ -793,6 +799,9 @@ public class SimpleTest {
     assertEquals(1, more.results.size());
     ByteBuffer maxRow = client.getMaxRow(creds, "bar", null, null, false, null, false);
     assertEquals(s2bb("a"), maxRow);
+    
+    assertFalse(client.testTableClassLoad(creds, "bar", "abc123", SortedKeyValueIterator.class.getName()));
+    assertTrue(client.testTableClassLoad(creds, "bar", VersioningIterator.class.getName(), SortedKeyValueIterator.class.getName()));
   }
   
   // scan !METADATA table for file entries for the given table

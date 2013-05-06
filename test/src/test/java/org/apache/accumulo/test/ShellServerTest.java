@@ -29,6 +29,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.Map.Entry;
 
 import jline.ConsoleReader;
@@ -39,13 +40,17 @@ import org.apache.accumulo.core.client.Scanner;
 import org.apache.accumulo.core.client.ZooKeeperInstance;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
+import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.file.FileOperations;
 import org.apache.accumulo.core.file.FileSKVWriter;
 import org.apache.accumulo.core.util.UtilWaitThread;
 import org.apache.accumulo.core.util.shell.Shell;
+import org.apache.accumulo.server.mini.MiniAccumuloCluster;
+import org.apache.accumulo.server.mini.MiniAccumuloConfig;
 import org.apache.accumulo.server.trace.TraceServer;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -111,7 +116,8 @@ public class ShellServerTest {
   
   static void assertGoodExit(String s, boolean stringPresent) {
     Shell.log.debug(output.get());
-    assertEquals(shell.getExitCode(), 0);
+    assertEquals(0, shell.getExitCode());
+
     if (s.length() > 0)
       assertEquals(s + " present in " + output.get() + " was not " + stringPresent, stringPresent, output.get().contains(s));
   }
@@ -141,7 +147,12 @@ public class ShellServerTest {
     exec("quit", true);
     shell.start();
     shell.setExit(false);
-    traceProcess = cluster.exec(TraceServer.class);
+
+    // use reflection to call this method so it does not need to be made public
+    Method method = cluster.getClass().getDeclaredMethod("exec", Class.class, String[].class);
+    method.setAccessible(true);
+    traceProcess = (Process) method.invoke(cluster, TraceServer.class, new String[0]);
+
     // give the tracer some time to start
     UtilWaitThread.sleep(1000);
   }
@@ -174,7 +185,6 @@ public class ShellServerTest {
     exec("deletetable -f t", true);
     exec("deletetable -f t2", true);
   }
-  
   private DistCp newDistCp() {
     try {
       @SuppressWarnings("unchecked")
@@ -239,6 +249,10 @@ public class ShellServerTest {
     make10();
     exec("flush -t t -w");
     exec("du t", true, " [t]", true);
+    output.clear();
+    shell.execCommand("du -h", false, false);
+    String o = output.get();
+    assertTrue(o.matches(".*26[0-9]B\\s\\[t\\]\\n")); // for some reason, there's 1-2 bytes of fluctuation
     exec("deletetable -f t");
   }
   
@@ -356,7 +370,7 @@ public class ShellServerTest {
   public void addauths() throws Exception {
     // addauths
     exec("createtable xyzzy -evc");
-    exec("insert a b c d -l foo", true, "does not have authorization", true);
+    exec("insert a b c d -l foo", false, "does not have authorization", true);
     exec("addauths -s foo,bar", true);
     exec("getauths", true, "foo", true);
     exec("getauths", true, "bar", true);
@@ -696,6 +710,48 @@ public class ShellServerTest {
     assertEquals(13, parts.length);
     thread.join();
     exec("deletetable -f t", true);
+  }
+  
+  @Test(timeout = 30000)
+  public void testPertableClasspath() throws Exception {
+    File fooFilterJar = File.createTempFile("FooFilter", ".jar");
+    FileUtils.copyURLToFile(this.getClass().getResource("/FooFilter.jar"), fooFilterJar);
+    fooFilterJar.deleteOnExit();
+    
+    File fooConstraintJar = File.createTempFile("FooConstraint", ".jar");
+    FileUtils.copyURLToFile(this.getClass().getResource("/FooConstraint.jar"), fooConstraintJar);
+    fooConstraintJar.deleteOnExit();
+    
+    exec(
+        "config -s " + Property.VFS_CONTEXT_CLASSPATH_PROPERTY.getKey() + "cx1=" + fooFilterJar.toURI().toString() + "," + fooConstraintJar.toURI().toString(),
+        true);
+    
+    exec("createtable ptc", true);
+    exec("config -t ptc -s " + Property.TABLE_CLASSPATH.getKey() + "=cx1", true);
+    
+    UtilWaitThread.sleep(200);
+    
+    exec("setiter -scan -class org.apache.accumulo.test.FooFilter -p 10 -n foo", true);
+    
+    exec("insert foo f q v", true);
+    
+    UtilWaitThread.sleep(100);
+
+    exec("scan -np", true, "foo", false);
+
+    exec("constraint -a FooConstraint", true);
+    
+    exec("offline ptc");
+    UtilWaitThread.sleep(500);
+    exec("online ptc");
+
+    exec("table ptc", true);
+    exec("insert foo f q v", false);
+    exec("insert ok foo q v", true);
+    
+    exec("deletetable ptc", true);
+    exec("config -d " + Property.VFS_CONTEXT_CLASSPATH_PROPERTY.getKey() + "cx1");
+
   }
   
   @Test(timeout = 30000)
