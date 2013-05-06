@@ -18,6 +18,7 @@ import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.security.SystemPermission;
 import org.apache.accumulo.core.security.TablePermission;
+import org.apache.accumulo.server.mini.MiniAccumuloCluster;
 import org.apache.accumulo.server.security.AuditedSecurityOperation;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.LineIterator;
@@ -122,14 +123,7 @@ public class AuditMessageTest {
     logWriters = accumulo.getLogWriters();
   }
   
-  @AfterClass
-  public static void tearDownMiniCluster() throws Exception {
-    accumulo.stop();
-    
-    // Comment this out to have a look at the logs, they will be in /tmp/junit*
-    folder.delete();
-  }
-  
+
   private void grantEverySystemPriv(Connector conn, String user) throws AccumuloSecurityException, AccumuloException {
     SystemPermission[] arrayOfP = new SystemPermission[] {SystemPermission.SYSTEM, SystemPermission.ALTER_TABLE, SystemPermission.ALTER_USER,
         SystemPermission.CREATE_TABLE, SystemPermission.CREATE_USER, SystemPermission.DROP_TABLE, SystemPermission.DROP_USER};
@@ -344,4 +338,11 @@ public class AuditMessageTest {
     
   }
   
+  @AfterClass
+  public static void tearDownMiniCluster() throws Exception {
+    accumulo.stop();
+
+    // Comment this out to have a look at the logs, they will be in /tmp/junit*
+    folder.delete();
+  }
 }

@@ -53,7 +53,7 @@ public class MiniAccumuloCluster {
   private static final String INSTANCE_SECRET = "DONTTELL";
   private static final String INSTANCE_NAME = "miniInstance";
   
-  protected static class LogWriter extends Thread {
+  public static class LogWriter extends Thread {
     private BufferedReader in;
     private BufferedWriter out;
     
