@@ -100,7 +100,7 @@ public class AuditedSecurityOperation extends SecurityOperation {
     }
   }
   
-  private static StringBuilder getAuthString(List<ByteBuffer> authorizations) {
+  public static StringBuilder getAuthString(List<ByteBuffer> authorizations) {
     StringBuilder auths = new StringBuilder();
     for (ByteBuffer bb : authorizations) {
       auths.append(ByteBufferUtil.toString(bb)).append(",");
@@ -114,7 +114,7 @@ public class AuditedSecurityOperation extends SecurityOperation {
   
   // Is INFO the right level to check? Do we even need that check?
   private static boolean shouldAudit(TCredentials credentials) {
-    return log.isEnabledFor(Level.INFO) && !credentials.getPrincipal().equals(SecurityConstants.SYSTEM_PRINCIPAL);
+    return !credentials.getPrincipal().equals(SecurityConstants.SYSTEM_PRINCIPAL);
   }
   
   /*

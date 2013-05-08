@@ -45,7 +45,7 @@ import org.apache.zookeeper.server.ZooKeeperServerMain;
  */
 public class MiniAccumuloCluster {
   
-  private static class LogWriter extends Thread {
+  public static class LogWriter extends Thread {
     private BufferedReader in;
     private BufferedWriter out;
     
@@ -99,7 +99,11 @@ public class MiniAccumuloCluster {
   private Process[] tabletServerProcesses;
   
   private File zooCfgFile;
-  
+
+  public List<LogWriter> getLogWriters() {
+    return logWriters;
+  }
+
   private List<LogWriter> logWriters = new ArrayList<MiniAccumuloCluster.LogWriter>();
   
   private MiniAccumuloConfig config;

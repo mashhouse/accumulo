@@ -119,7 +119,7 @@ public class AuditMessageTest {
     
     accumulo = new MiniAccumuloCluster(folder.getRoot(), "superSecret");
     accumulo.start();
-    logDir = accumulo.getLogDir();
+    logDir = accumulo.getConfig().getLogDir();
     logWriters = accumulo.getLogWriters();
   }
   
@@ -330,9 +330,8 @@ public class AuditMessageTest {
         findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CAN_ONLINE_OFFLINE_TABLE_AUDIT_TEMPLATE, "onlineTable", OLD_TEST_TABLE_NAME))
             .size());
     assertTrue(1 <= findAuditMessage(auditMessages,
-        "action: scan; targetTable: " + OLD_TEST_TABLE_NAME + "; authorizations: " + auths.toString() + ",; range: " + new Range().toString()).size());
-    assertTrue(1 <= findAuditMessage(auditMessages,
-        "action: scan; targetTable: " + OLD_TEST_TABLE_NAME + "; authorizations: " + auths.toString() + ",; range: " + new Range().toString()).size());
+        "action: scan; targetTable: " + OLD_TEST_TABLE_NAME).size());
+    assertTrue(1 <= findAuditMessage(auditMessages, "action: scan; targetTable: " + NEW_TEST_TABLE_NAME).size());
     assertEquals(1,
         findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CAN_DELETE_RANGE_AUDIT_TEMPLATE, NEW_TEST_TABLE_NAME, "myRow", "myRow~")).size());
     
