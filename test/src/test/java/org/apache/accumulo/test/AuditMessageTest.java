@@ -39,21 +39,50 @@ import org.junit.rules.TemporaryFolder;
  */
 public class AuditMessageTest {
   
-  private static final String AUDIT_USER_1 = "AuditUser1";
-  private static final String AUDIT_USER_2 = "AuditUser2";
-  private static final PasswordToken PASSWORD_TOKEN = new PasswordToken("password");
-  private static final String OLD_TEST_TABLE_NAME = "apples";
-  private static final String NEW_TEST_TABLE_NAME = "oranges";
-  private static final String THIRD_TEST_TABLE_NAME = "pears";
-  private static final String filePrefix = "file:";
-  private static TemporaryFolder folder;
   private static MiniAccumuloCluster accumulo;
-  private static String lastAuditTimestamp;
-  private static final Authorizations auths = new Authorizations("private", "public");
   private static File logDir;
   private static List<MiniAccumuloCluster.LogWriter> logWriters;
+  private final String AUDIT_USER_1 = "AuditUser1";
+  private final String AUDIT_USER_2 = "AuditUser2";
+  private final PasswordToken PASSWORD_TOKEN = new PasswordToken("password");
+  private final String OLD_TEST_TABLE_NAME = "apples";
+  private final String NEW_TEST_TABLE_NAME = "oranges";
+  private final String THIRD_TEST_TABLE_NAME = "pears";
+  private final Authorizations auths = new Authorizations("private", "public");
+  
+  // Must be static to survive Junit re-initialising the class every time.
+  private static String lastAuditTimestamp;
   private Connector auditConnector;
   private Connector conn;
+  
+  private static ArrayList<String> findAuditMessage(ArrayList<String> input, String pattern) {
+    ArrayList<String> result = new ArrayList<String>();
+    for (String s : input) {
+      if (s.matches(".*" + pattern + ".*"))
+        result.add(s);
+    }
+    return result;
+  }
+  
+  @BeforeClass
+  public static void setupMiniCluster() throws Exception {
+    TemporaryFolder folder = new TemporaryFolder();
+    folder.create();
+    Logger.getLogger("org.apache.zookeeper").setLevel(Level.ERROR);
+    
+    accumulo = new MiniAccumuloCluster(folder.getRoot(), "superSecret");
+    accumulo.start();
+    logDir = accumulo.getConfig().getLogDir();
+    logWriters = accumulo.getLogWriters();
+  }
+  
+  @AfterClass
+  public static void tearDownMiniCluster() throws Exception {
+    accumulo.stop();
+    
+    // Comment this out to have a look at the logs, they will be in /tmp/junit*
+    // folder.delete();
+  }
   
   /**
    * Returns a List of Audit messages that have been grep'd out of the MiniAccumuloCluster output.
@@ -62,19 +91,19 @@ public class AuditMessageTest {
    *          A unique name for the test being executed, to identify the System.out messages.
    * @return A List of the Audit messages, sorted (so in chronological order).
    */
-  private static ArrayList<String> getAuditMessages(String stepName) throws IOException {
+  private ArrayList<String> getAuditMessages(String stepName) throws IOException {
     
     for (MiniAccumuloCluster.LogWriter lw : logWriters) {
       lw.flush();
     }
-    // Thread.sleep(1500);
     
     // Grab the audit messages
     System.out.println("Start of captured audit messages for step " + stepName);
     
     ArrayList<String> result = new ArrayList<String>();
     for (File file : logDir.listFiles()) {
-      if (file.isFile() && file.canRead()) {
+      // We want to grab the files called .out
+      if (file.getName().contains(".out") && file.isFile() && file.canRead()) {
         LineIterator it = FileUtils.lineIterator(file, "UTF-8");
         try {
           while (it.hasNext()) {
@@ -90,7 +119,7 @@ public class AuditMessageTest {
         }
       }
     }
-    java.util.Collections.sort(result);
+    Collections.sort(result);
     
     for (String s : result) {
       System.out.println(s);
@@ -102,28 +131,6 @@ public class AuditMessageTest {
     return result;
   }
   
-  private static ArrayList<String> findAuditMessage(ArrayList<String> input, String pattern) {
-    ArrayList<String> result = new ArrayList<String>();
-    for (String s : input) {
-      if (s.contains(pattern))
-        result.add(s);
-    }
-    return result;
-  }
-  
-  @BeforeClass
-  public static void setupMiniCluster() throws Exception {
-    folder = new TemporaryFolder();
-    folder.create();
-    Logger.getLogger("org.apache.zookeeper").setLevel(Level.ERROR);
-    
-    accumulo = new MiniAccumuloCluster(folder.getRoot(), "superSecret");
-    accumulo.start();
-    logDir = accumulo.getConfig().getLogDir();
-    logWriters = accumulo.getLogWriters();
-  }
-  
-
   private void grantEverySystemPriv(Connector conn, String user) throws AccumuloSecurityException, AccumuloException {
     SystemPermission[] arrayOfP = new SystemPermission[] {SystemPermission.SYSTEM, SystemPermission.ALTER_TABLE, SystemPermission.ALTER_USER,
         SystemPermission.CREATE_TABLE, SystemPermission.CREATE_USER, SystemPermission.DROP_TABLE, SystemPermission.DROP_USER};
@@ -133,7 +140,7 @@ public class AuditMessageTest {
   }
   
   @Before
-  public void setup() throws AccumuloException, AccumuloSecurityException, TableNotFoundException, IOException, InterruptedException {
+  public void setup() throws AccumuloException, AccumuloSecurityException, TableNotFoundException, IOException {
     conn = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector("root", new PasswordToken("superSecret"));
     
     // I don't want to recreate the instance for every test since it will take ages.
@@ -237,8 +244,8 @@ public class AuditMessageTest {
   }
   
   @Test
-  public void testDataOperationsAudits() throws AccumuloSecurityException, AccumuloException, TableExistsException, TableNotFoundException, IOException,
-      InterruptedException {
+  public void testImportExportOperationsAudits() throws AccumuloSecurityException, AccumuloException, TableExistsException, TableNotFoundException,
+      IOException, InterruptedException {
     
     conn.securityOperations().createLocalUser(AUDIT_USER_1, PASSWORD_TOKEN);
     conn.securityOperations().grantSystemPermission(AUDIT_USER_1, SystemPermission.SYSTEM);
@@ -248,7 +255,6 @@ public class AuditMessageTest {
     // Connect as Audit User and do a bunch of stuff.
     // Start testing activities here
     auditConnector = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector(AUDIT_USER_1, PASSWORD_TOKEN);
-    
     auditConnector.tableOperations().create(OLD_TEST_TABLE_NAME);
     
     // Insert some play data
@@ -259,6 +265,7 @@ public class AuditMessageTest {
     bw.addMutation(m);
     bw.close();
     
+    // Prepare to export the table
     File exportDir = new File(accumulo.getConfig().getDir().toString() + "/export");
     
     auditConnector.tableOperations().offline(OLD_TEST_TABLE_NAME);
@@ -268,6 +275,9 @@ public class AuditMessageTest {
     File distCpTxt = new File(exportDir.toString() + "/distcp.txt");
     File importFile = null;
     LineIterator it = FileUtils.lineIterator(distCpTxt, "UTF-8");
+    
+    // Just grab the first rf file, it will do for now.
+    String filePrefix = "file:";
     try {
       while (it.hasNext() && importFile == null) {
         String line = it.nextLine();
@@ -281,35 +291,16 @@ public class AuditMessageTest {
     FileUtils.copyFileToDirectory(importFile, exportDir);
     auditConnector.tableOperations().importTable(NEW_TEST_TABLE_NAME, exportDir.toString());
     
-    // Now do a Directory (bulk) import
+    // Now do a Directory (bulk) import of the same data.
     auditConnector.tableOperations().create(THIRD_TEST_TABLE_NAME);
     File failDir = new File(exportDir + "/tmp");
     failDir.mkdirs();
     auditConnector.tableOperations().importDirectory(THIRD_TEST_TABLE_NAME, exportDir.toString(), failDir.toString(), false);
     auditConnector.tableOperations().online(OLD_TEST_TABLE_NAME);
     
-    // A regular scan
-    Scanner scanner = auditConnector.createScanner(OLD_TEST_TABLE_NAME, auths);
-    for (Map.Entry<Key,Value> entry : scanner) {
-      System.out.println("Scanner row: " + entry.getKey() + " " + entry.getValue());
-    }
-    
-    // A batch scan
-    BatchScanner bs = auditConnector.createBatchScanner(NEW_TEST_TABLE_NAME, auths, 1);
-    bs.fetchColumn(new Text("cf1"), new Text("cq1"));
-    bs.setRanges(Arrays.asList(new Range("myRow", "myRow~")));
-    
-    for (Map.Entry<Key,Value> entry : bs) {
-      System.out.println("BatchScanner row: " + entry.getKey() + " " + entry.getValue());
-    }
-    
-    auditConnector.tableOperations().deleteRows(NEW_TEST_TABLE_NAME, new Text("myRow"), new Text("myRow~"));
-    
     // Stop testing activities here
     
-    // Sleep to allow MiniAccumuloCluster.LogWriter to flush
-    
-    ArrayList<String> auditMessages = getAuditMessages("testDataOperations");
+    ArrayList<String> auditMessages = getAuditMessages("testImportExportOperationsAudits");
     
     assertEquals(1, findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CAN_CREATE_TABLE_AUDIT_TEMPLATE, OLD_TEST_TABLE_NAME)).size());
     assertEquals(1,
@@ -329,19 +320,155 @@ public class AuditMessageTest {
     assertEquals(1,
         findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CAN_ONLINE_OFFLINE_TABLE_AUDIT_TEMPLATE, "onlineTable", OLD_TEST_TABLE_NAME))
             .size());
-    assertTrue(1 <= findAuditMessage(auditMessages,
-        "action: scan; targetTable: " + OLD_TEST_TABLE_NAME).size());
-    assertTrue(1 <= findAuditMessage(auditMessages, "action: scan; targetTable: " + NEW_TEST_TABLE_NAME).size());
-    assertEquals(1,
-        findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CAN_DELETE_RANGE_AUDIT_TEMPLATE, NEW_TEST_TABLE_NAME, "myRow", "myRow~")).size());
     
   }
   
-  @AfterClass
-  public static void tearDownMiniCluster() throws Exception {
-    accumulo.stop();
+  @Test
+  public void testDataOperationsAudits() throws AccumuloSecurityException, AccumuloException, TableExistsException, TableNotFoundException, IOException,
+      InterruptedException {
+    
+    conn.securityOperations().createLocalUser(AUDIT_USER_1, PASSWORD_TOKEN);
+    conn.securityOperations().grantSystemPermission(AUDIT_USER_1, SystemPermission.SYSTEM);
+    conn.securityOperations().changeUserAuthorizations(AUDIT_USER_1, auths);
+    grantEverySystemPriv(conn, AUDIT_USER_1);
+    
+    // Connect as Audit User and do a bunch of stuff.
+    // Start testing activities here
+    auditConnector = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector(AUDIT_USER_1, PASSWORD_TOKEN);
+    auditConnector.tableOperations().create(OLD_TEST_TABLE_NAME);
+    
+    // Insert some play data
+    BatchWriter bw = auditConnector.createBatchWriter(OLD_TEST_TABLE_NAME, new BatchWriterConfig());
+    Mutation m = new Mutation("myRow");
+    m.put("cf1", "cq1", "v1");
+    m.put("cf1", "cq2", "v3");
+    bw.addMutation(m);
+    bw.close();
+    
+    // Start testing activities here
+    // A regular scan
+    Scanner scanner = auditConnector.createScanner(OLD_TEST_TABLE_NAME, auths);
+    for (Map.Entry<Key,Value> entry : scanner) {
+      System.out.println("Scanner row: " + entry.getKey() + " " + entry.getValue());
+    }
+    scanner.close();
+    
+    // A batch scan
+    BatchScanner bs = auditConnector.createBatchScanner(OLD_TEST_TABLE_NAME, auths, 1);
+    bs.fetchColumn(new Text("cf1"), new Text("cq1"));
+    bs.setRanges(Arrays.asList(new Range("myRow", "myRow~")));
+    
+    for (Map.Entry<Key,Value> entry : bs) {
+      System.out.println("BatchScanner row: " + entry.getKey() + " " + entry.getValue());
+    }
+    bs.close();
+    
+    // Delete some data.
+    auditConnector.tableOperations().deleteRows(OLD_TEST_TABLE_NAME, new Text("myRow"), new Text("myRow~"));
+    
+    // End of testing activities
+    
+    ArrayList<String> auditMessages = getAuditMessages("testDataOperationsAudits");
+    assertTrue(1 <= findAuditMessage(auditMessages, "action: scan; targetTable: " + OLD_TEST_TABLE_NAME).size());
+    assertTrue(1 <= findAuditMessage(auditMessages, "action: scan; targetTable: " + OLD_TEST_TABLE_NAME).size());
+    assertEquals(1,
+        findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CAN_DELETE_RANGE_AUDIT_TEMPLATE, OLD_TEST_TABLE_NAME, "myRow", "myRow~")).size());
+    
+  }
+  
+  @Test
+  public void testDeniedAudits() throws AccumuloSecurityException, AccumuloException, TableExistsException, TableNotFoundException, IOException,
+      InterruptedException {
+    
+    // Create our user with no privs
+    conn.securityOperations().createLocalUser(AUDIT_USER_1, PASSWORD_TOKEN);
+    conn.tableOperations().create(OLD_TEST_TABLE_NAME);
+    auditConnector = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector(AUDIT_USER_1, PASSWORD_TOKEN);
+    
+    // Start testing activities
+    // We should get denied or / failed audit messages here.
+    // We don't want the thrown exceptions to stop our tests, and we are not testing that the Exceptions are thrown.
+    
+    try {
+      auditConnector.tableOperations().create(NEW_TEST_TABLE_NAME);
+    } catch (AccumuloSecurityException ex) {}
+    try {
+      auditConnector.tableOperations().rename(OLD_TEST_TABLE_NAME, NEW_TEST_TABLE_NAME);
+    } catch (AccumuloSecurityException ex) {}
+    try {
+      auditConnector.tableOperations().clone(OLD_TEST_TABLE_NAME, NEW_TEST_TABLE_NAME, true, Collections.EMPTY_MAP, Collections.EMPTY_SET);
+    } catch (AccumuloSecurityException ex) {}
+    try {
+      auditConnector.tableOperations().delete(OLD_TEST_TABLE_NAME);
+    } catch (AccumuloSecurityException ex) {}
+    try {
+      auditConnector.tableOperations().offline(OLD_TEST_TABLE_NAME);
+    } catch (AccumuloSecurityException ex) {}
+    try {
+      Scanner scanner = auditConnector.createScanner(OLD_TEST_TABLE_NAME, auths);
+      scanner.iterator().next().getKey();
+    } catch (RuntimeException ex) {}
+    try {
+      auditConnector.tableOperations().deleteRows(OLD_TEST_TABLE_NAME, new Text("myRow"), new Text("myRow~"));
+    } catch (AccumuloSecurityException ex) {}
+    
+    // ... that will do for now.
+    // End of testing activities
+    
+    ArrayList<String> auditMessages = getAuditMessages("testDeniedAudits");
+    assertEquals(1,
+        findAuditMessage(auditMessages, "operation: denied;.*" + String.format(AuditedSecurityOperation.CAN_CREATE_TABLE_AUDIT_TEMPLATE, NEW_TEST_TABLE_NAME))
+            .size());
+    assertEquals(
+        1,
+        findAuditMessage(auditMessages,
+            "operation: denied;.*" + String.format(AuditedSecurityOperation.CAN_RENAME_TABLE_AUDIT_TEMPLATE, OLD_TEST_TABLE_NAME, NEW_TEST_TABLE_NAME)).size());
+    assertEquals(
+        1,
+        findAuditMessage(auditMessages,
+            "operation: denied;.*" + String.format(AuditedSecurityOperation.CAN_CLONE_TABLE_AUDIT_TEMPLATE, OLD_TEST_TABLE_NAME, NEW_TEST_TABLE_NAME)).size());
+    assertEquals(1,
+        findAuditMessage(auditMessages, "operation: denied;.*" + String.format(AuditedSecurityOperation.CAN_DELETE_TABLE_AUDIT_TEMPLATE, OLD_TEST_TABLE_NAME))
+            .size());
+    assertEquals(
+        1,
+        findAuditMessage(auditMessages,
+            "operation: denied;.*" + String.format(AuditedSecurityOperation.CAN_ONLINE_OFFLINE_TABLE_AUDIT_TEMPLATE, "offlineTable", OLD_TEST_TABLE_NAME))
+            .size());
+    assertEquals(1, findAuditMessage(auditMessages, "operation: denied;.*" + "action: scan; targetTable: " + OLD_TEST_TABLE_NAME).size());
+    assertEquals(
+        1,
+        findAuditMessage(auditMessages,
+            "operation: denied;.*" + String.format(AuditedSecurityOperation.CAN_DELETE_RANGE_AUDIT_TEMPLATE, OLD_TEST_TABLE_NAME, "myRow", "myRow~")).size());
+  }
+  
+  @Test
+  public void testFailedAudits() throws AccumuloSecurityException, AccumuloException, TableExistsException, TableNotFoundException, IOException,
+      InterruptedException {
+    try {
+      // Test that we get a few "failed" audit messages come through when we tell it to do dumb stuff
+      // We don't want the thrown exceptions to stop our tests, and we are not testing that the Exceptions are thrown.
+      conn.tableOperations().delete(OLD_TEST_TABLE_NAME);
+    } catch (TableNotFoundException ex) {}
+    try {
+      conn.securityOperations().dropLocalUser(AUDIT_USER_2);
+    } catch (AccumuloSecurityException ex) {}
+    try {
+      conn.securityOperations().revokeSystemPermission(AUDIT_USER_2, SystemPermission.ALTER_TABLE);
+    } catch (AccumuloSecurityException ex) {}
+    try {
+      conn.securityOperations().createLocalUser("root", new PasswordToken("super secret"));
+    } catch (AccumuloSecurityException ex) {}
+    ArrayList<String> auditMessages = getAuditMessages("testFailedAudits");
+    
+    // TODO - how to handle this...
+    // assertEquals(
+    // 1,
+    // findAuditMessage(auditMessages,
+    // "operation: failed;.*" + String.format(AuditedSecurityOperation.CAN_DELETE_TABLE_AUDIT_TEMPLATE, OLD_TEST_TABLE_NAME)).size());
+    assertEquals(1, findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.DROP_USER_AUDIT_TEMPLATE, AUDIT_USER_2)).size());
+    assertEquals(1, findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.REVOKE_SYSTEM_PERMISSION_AUDIT_TEMPLATE,  SystemPermission.ALTER_TABLE, AUDIT_USER_2)).size());
+    assertEquals(1, findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CREATE_USER_AUDIT_TEMPLATE,  "root", "")).size());
 
-    // Comment this out to have a look at the logs, they will be in /tmp/junit*
-    folder.delete();
   }
 }
