@@ -61,7 +61,6 @@
      <appender-ref ref="ASYNC" />
   </logger>
 
-
   <logger name="org.apache.accumulo.core.file.rfile.bcfile">
      <level value="INFO"/>
   </logger>
