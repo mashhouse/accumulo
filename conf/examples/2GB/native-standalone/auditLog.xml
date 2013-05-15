@@ -31,7 +31,7 @@
     </appender>
     <logger name="Audit"  additivity="false">
         <appender-ref ref="Audit" />
-        <level value="ALL"/>
+        <level value="OFF"/>
     </logger>
 
 

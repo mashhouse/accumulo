@@ -391,10 +391,4 @@ public class AuditedSecurityOperation extends SecurityOperation {
       throw ex;
     }
   }
-  
-  @Override
-  public void initializeSecurity(TCredentials credentials, String principal, byte[] token) throws AccumuloSecurityException, ThriftSecurityException {
-    super.initializeSecurity(credentials, principal, token);
-    audit.info("Initialized root user with username: " + principal + " at the request of user " + credentials.getPrincipal());
-  }
 }

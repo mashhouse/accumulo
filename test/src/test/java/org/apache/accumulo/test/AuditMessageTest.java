@@ -49,7 +49,9 @@ public class AuditMessageTest {
   private final String NEW_TEST_TABLE_NAME = "oranges";
   private final String THIRD_TEST_TABLE_NAME = "pears";
   private final Authorizations auths = new Authorizations("private", "public");
-  
+  private static TemporaryFolder folder = new TemporaryFolder();
+
+
   // Must be static to survive Junit re-initialising the class every time.
   private static String lastAuditTimestamp;
   private Connector auditConnector;
@@ -66,7 +68,6 @@ public class AuditMessageTest {
   
   @BeforeClass
   public static void setupMiniCluster() throws Exception {
-    TemporaryFolder folder = new TemporaryFolder();
     folder.create();
     Logger.getLogger("org.apache.zookeeper").setLevel(Level.ERROR);
     
@@ -76,14 +77,7 @@ public class AuditMessageTest {
     logWriters = accumulo.getLogWriters();
   }
   
-  @AfterClass
-  public static void tearDownMiniCluster() throws Exception {
-    accumulo.stop();
-    
-    // Comment this out to have a look at the logs, they will be in /tmp/junit*
-    // folder.delete();
-  }
-  
+
   /**
    * Returns a List of Audit messages that have been grep'd out of the MiniAccumuloCluster output.
    * 
@@ -445,11 +439,10 @@ public class AuditMessageTest {
   @Test
   public void testFailedAudits() throws AccumuloSecurityException, AccumuloException, TableExistsException, TableNotFoundException, IOException,
       InterruptedException {
-    try {
-      // Test that we get a few "failed" audit messages come through when we tell it to do dumb stuff
-      // We don't want the thrown exceptions to stop our tests, and we are not testing that the Exceptions are thrown.
-      conn.tableOperations().delete(OLD_TEST_TABLE_NAME);
-    } catch (TableNotFoundException ex) {}
+    
+    // Start testing activities
+    // Test that we get a few "failed" audit messages come through when we tell it to do dumb stuff
+    // We don't want the thrown exceptions to stop our tests, and we are not testing that the Exceptions are thrown.
     try {
       conn.securityOperations().dropLocalUser(AUDIT_USER_2);
     } catch (AccumuloSecurityException ex) {}
@@ -460,15 +453,23 @@ public class AuditMessageTest {
       conn.securityOperations().createLocalUser("root", new PasswordToken("super secret"));
     } catch (AccumuloSecurityException ex) {}
     ArrayList<String> auditMessages = getAuditMessages("testFailedAudits");
+    // ... that will do for now.
+    // End of testing activities
     
-    // TODO - how to handle this...
-    // assertEquals(
-    // 1,
-    // findAuditMessage(auditMessages,
-    // "operation: failed;.*" + String.format(AuditedSecurityOperation.CAN_DELETE_TABLE_AUDIT_TEMPLATE, OLD_TEST_TABLE_NAME)).size());
     assertEquals(1, findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.DROP_USER_AUDIT_TEMPLATE, AUDIT_USER_2)).size());
-    assertEquals(1, findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.REVOKE_SYSTEM_PERMISSION_AUDIT_TEMPLATE,  SystemPermission.ALTER_TABLE, AUDIT_USER_2)).size());
-    assertEquals(1, findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CREATE_USER_AUDIT_TEMPLATE,  "root", "")).size());
+    assertEquals(
+        1,
+        findAuditMessage(auditMessages,
+            String.format(AuditedSecurityOperation.REVOKE_SYSTEM_PERMISSION_AUDIT_TEMPLATE, SystemPermission.ALTER_TABLE, AUDIT_USER_2)).size());
+    assertEquals(1, findAuditMessage(auditMessages, String.format(AuditedSecurityOperation.CREATE_USER_AUDIT_TEMPLATE, "root", "")).size());
+    
+  }
 
+  @AfterClass
+  public static void tearDownMiniCluster() throws Exception {
+    accumulo.stop();
+
+    // Comment this out to have a look at the logs, they will be in /tmp/junit*
+    folder.delete();
   }
 }
