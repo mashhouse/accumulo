@@ -18,7 +18,7 @@ import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.security.SystemPermission;
 import org.apache.accumulo.core.security.TablePermission;
-import org.apache.accumulo.server.mini.MiniAccumuloCluster;
+import org.apache.accumulo.minicluster.MiniAccumuloCluster;
 import org.apache.accumulo.server.security.AuditedSecurityOperation;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.LineIterator;
