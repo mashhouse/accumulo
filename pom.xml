@@ -23,10 +23,10 @@
     <version>13</version>
   </parent>
   <groupId>org.apache.accumulo</groupId>
-  <artifactId>accumulo</artifactId>
+  <artifactId>accumulo-project</artifactId>
   <version>1.6.0-SNAPSHOT</version>
   <packaging>pom</packaging>
-  <name>Apache Accumulo</name>
+  <name>Apache Accumulo Project</name>
   <description>Apache Accumulo is a sorted, distributed key/value store based on Google's BigTable design. It is built on top of Apache Hadoop, Zookeeper, and Thrift. It features a few novel improvements on the BigTable design in the form of cell-level access labels and a server-side programming mechanism that can modify key/value pairs at various points in the data management process.</description>
   <!-- this URL is where the site derived via the maven-site-plugin ends up, not the generic site -->
   <url>http://accumulo.apache.org/maven-site/</url>
@@ -81,6 +81,7 @@
     <module>assemble</module>
     <module>proxy</module>
     <module>test</module>
+    <module>minicluster</module>
   </modules>
   <scm>
     <connection>scm:svn:http://svn.apache.org/repos/asf/accumulo/trunk</connection>
@@ -112,8 +113,6 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <sealJars>false</sealJars>
-    <!-- include the tarball, as well as the zip, for the Apache source-release artifact -->
-    <sourceReleaseAssemblyDescriptor>source-release-zip-tar</sourceReleaseAssemblyDescriptor>
     <!-- ZooKeeper 3.4.x works also, but we're not using new features yet; this ensures 3.3.x compatibility. -->
     <zookeeper.version>3.3.6</zookeeper.version>
   </properties>
@@ -153,6 +152,11 @@
         <groupId>commons-configuration</groupId>
         <artifactId>commons-configuration</artifactId>
         <version>1.6</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-httpclient</groupId>
+        <artifactId>commons-httpclient</artifactId>
+        <version>${httpclient.version}</version>
       </dependency>
       <dependency>
         <groupId>commons-io</groupId>
@@ -216,6 +220,11 @@
       </dependency>
       <dependency>
         <groupId>org.apache.accumulo</groupId>
+        <artifactId>accumulo-minicluster</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.accumulo</groupId>
         <artifactId>accumulo-proxy</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -258,6 +267,26 @@
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-vfs2</artifactId>
         <version>2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-client</artifactId>
+        <version>${hadoop.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-distcp</artifactId>
+        <version>${hadoop.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-minicluster</artifactId>
+        <version>${hadoop.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-tools</artifactId>
+        <version>${hadoop.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.thrift</groupId>
@@ -337,6 +366,7 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-assembly-plugin</artifactId>
           <configuration>
+            <attach>false</attach>
             <tarLongFileMode>gnu</tarLongFileMode>
           </configuration>
         </plugin>
@@ -423,11 +453,12 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-release-plugin</artifactId>
           <configuration>
-            <arguments>-P apache-release,seal-jars,check-licenses,thrift,native,assemble,docs,rpm,deb</arguments>
+            <arguments>-P apache-release,check-licenses,thrift,native,assemble,docs,rpm,deb</arguments>
             <autoVersionSubmodules>true</autoVersionSubmodules>
             <goals>clean compile javadoc:aggregate deploy</goals>
             <preparationGoals>clean compile javadoc:aggregate verify</preparationGoals>
             <tagNameFormat>@{project.version}-RC</tagNameFormat>
+            <releaseProfiles>seal-jars</releaseProfiles>
             <useReleaseProfile>false</useReleaseProfile>
           </configuration>
         </plugin>
@@ -746,6 +777,63 @@
   </reporting>
   <profiles>
     <profile>
+      <id>apache-release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <dependencies>
+              <dependency>
+                <groupId>org.apache.apache.resources</groupId>
+                <artifactId>apache-source-release-assembly-descriptor</artifactId>
+                <version>1.0.4</version>
+              </dependency>
+            </dependencies>
+            <executions>
+              <execution>
+                <id>source-release-assembly</id>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+                <phase>validate</phase>
+                <configuration>
+                  <runOnlyAtExecutionRoot>true</runOnlyAtExecutionRoot>
+                  <finalName>accumulo-${project.version}</finalName>
+                  <descriptorRefs>
+                    <descriptorRef>source-release-zip-tar</descriptorRef>
+                  </descriptorRefs>
+                  <tarLongFileFormat>gnu</tarLongFileFormat>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>rename-source-release-assembly</id>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <phase>validate</phase>
+                <configuration>
+                  <executable>mv</executable>
+                  <workingDirectory>${project.build.directory}</workingDirectory>
+                  <commandlineArgs>-n accumulo-${project.version}-source-release.tar.gz accumulo-${project.version}-src.tar.gz</commandlineArgs>
+                  <successCodes>
+                    <successCode>0</successCode>
+                    <successCode>1</successCode>
+                  </successCodes>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
       <!-- 'mvn clean -P sortpom' sorts -->
       <id>sortpom</id>
       <build>
@@ -827,27 +915,9 @@
       </activation>
       <properties>
         <hadoop.version>1.0.4</hadoop.version>
+        <httpclient.version>3.0.1</httpclient.version>
         <slf4j.version>1.4.3</slf4j.version>
       </properties>
-      <dependencyManagement>
-        <dependencies>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-core</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-test</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-tools</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-        </dependencies>
-      </dependencyManagement>
     </profile>
     <profile>
       <!-- profile for building against Hadoop 2.0.x
@@ -860,61 +930,10 @@
         </property>
       </activation>
       <properties>
-        <avro.version>1.5.3</avro.version>
-        <hadoop.version>2.0.3-alpha</hadoop.version>
+        <hadoop.version>2.0.4-alpha</hadoop.version>
         <httpclient.version>3.1</httpclient.version>
         <slf4j.version>1.6.1</slf4j.version>
       </properties>
-      <dependencyManagement>
-        <dependencies>
-          <dependency>
-            <groupId>commons-httpclient</groupId>
-            <artifactId>commons-httpclient</artifactId>
-            <version>${httpclient.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro</artifactId>
-            <version>${avro.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-client</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-common</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-distcp</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-hdfs</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-hdfs</artifactId>
-            <version>${hadoop.version}</version>
-            <type>test-jar</type>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-mapreduce-client-core</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-minicluster</artifactId>
-            <version>${hadoop.version}</version>
-          </dependency>
-        </dependencies>
-      </dependencyManagement>
     </profile>
   </profiles>
 </project>

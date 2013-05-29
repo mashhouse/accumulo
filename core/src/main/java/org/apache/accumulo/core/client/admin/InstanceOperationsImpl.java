@@ -33,11 +33,11 @@ import org.apache.accumulo.core.client.impl.ServerClient;
 import org.apache.accumulo.core.client.impl.thrift.ClientService;
 import org.apache.accumulo.core.client.impl.thrift.ConfigurationType;
 import org.apache.accumulo.core.client.impl.thrift.ThriftSecurityException;
-import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.master.thrift.MasterClientService;
 import org.apache.accumulo.core.security.thrift.TCredentials;
 import org.apache.accumulo.core.tabletserver.thrift.TabletClientService;
 import org.apache.accumulo.core.tabletserver.thrift.TabletClientService.Client;
+import org.apache.accumulo.core.util.AddressUtil;
 import org.apache.accumulo.core.util.ArgumentChecker;
 import org.apache.accumulo.core.util.ThriftUtil;
 import org.apache.accumulo.core.zookeeper.ZooUtil;
@@ -66,7 +66,9 @@ public class InstanceOperationsImpl implements InstanceOperations {
     this.credentials = credentials;
   }
   
-  /* (non-Javadoc)
+  /*
+   * (non-Javadoc)
+   * 
    * @see org.apache.accumulo.core.client.admin.InstanceOperations#setProperty(java.lang.String, java.lang.String)
    */
   @Override
@@ -80,7 +82,9 @@ public class InstanceOperationsImpl implements InstanceOperations {
     });
   }
   
-  /* (non-Javadoc)
+  /*
+   * (non-Javadoc)
+   * 
    * @see org.apache.accumulo.core.client.admin.InstanceOperations#removeProperty(java.lang.String)
    */
   @Override
@@ -94,7 +98,9 @@ public class InstanceOperationsImpl implements InstanceOperations {
     });
   }
   
-  /* (non-Javadoc)
+  /*
+   * (non-Javadoc)
+   * 
    * @see org.apache.accumulo.core.client.admin.InstanceOperations#getSystemConfiguration()
    */
   @Override
@@ -107,7 +113,9 @@ public class InstanceOperationsImpl implements InstanceOperations {
     });
   }
   
-  /* (non-Javadoc)
+  /*
+   * (non-Javadoc)
+   * 
    * @see org.apache.accumulo.core.client.admin.InstanceOperations#getSiteConfiguration()
    */
   @Override
@@ -120,7 +128,9 @@ public class InstanceOperationsImpl implements InstanceOperations {
     });
   }
   
-  /* (non-Javadoc)
+  /*
+   * (non-Javadoc)
+   * 
    * @see org.apache.accumulo.core.client.admin.InstanceOperations#getTabletServers()
    */
   
@@ -143,7 +153,9 @@ public class InstanceOperationsImpl implements InstanceOperations {
     return results;
   }
   
-  /* (non-Javadoc)
+  /*
+   * (non-Javadoc)
+   * 
    * @see org.apache.accumulo.core.client.admin.InstanceOperations#getActiveScans(java.lang.String)
    */
   
@@ -174,7 +186,9 @@ public class InstanceOperationsImpl implements InstanceOperations {
     }
   }
   
-  /* (non-Javadoc)
+  /*
+   * (non-Javadoc)
+   * 
    * @see org.apache.accumulo.core.client.admin.InstanceOperations#testClassLoad(java.lang.String, java.lang.String)
    */
   @Override
@@ -224,7 +238,7 @@ public class InstanceOperationsImpl implements InstanceOperations {
   public void ping(String tserver) throws AccumuloException {
     TTransport transport = null;
     try {
-      transport = ThriftUtil.createTransport(tserver, instance.getConfiguration().getPort(Property.TSERV_CLIENTPORT), instance.getConfiguration());
+      transport = ThriftUtil.createTransport(AddressUtil.parseAddress(tserver), instance.getConfiguration());
       TabletClientService.Client client = ThriftUtil.createClient(new TabletClientService.Client.Factory(), transport);
       client.getTabletServerStatus(Tracer.traceInfo(), credentials);
     } catch (TTransportException e) {

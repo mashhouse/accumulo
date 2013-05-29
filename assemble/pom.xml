@@ -19,12 +19,12 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.apache.accumulo</groupId>
-    <artifactId>accumulo</artifactId>
+    <artifactId>accumulo-project</artifactId>
     <version>1.6.0-SNAPSHOT</version>
   </parent>
-  <artifactId>accumulo-assemble</artifactId>
+  <artifactId>accumulo</artifactId>
   <packaging>pom</packaging>
-  <name>Assemble</name>
+  <name>Assemblies</name>
   <properties>
     <accumulo-top>..</accumulo-top>
   </properties>
@@ -51,6 +51,10 @@
     </dependency>
     <dependency>
       <groupId>org.apache.accumulo</groupId>
+      <artifactId>accumulo-minicluster</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.accumulo</groupId>
       <artifactId>accumulo-proxy</artifactId>
     </dependency>
     <dependency>
@@ -72,6 +76,11 @@
     <dependency>
       <groupId>log4j</groupId>
       <artifactId>log4j</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-client</artifactId>
       <scope>provided</scope>
     </dependency>
   </dependencies>
@@ -102,6 +111,34 @@
   </build>
   <profiles>
     <profile>
+      <id>apache-release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-source-release-assembly</id>
+                <goals>
+                  <goal>attach-artifact</goal>
+                </goals>
+                <configuration>
+                  <artifacts>
+                    <artifact>
+                      <file>${project.parent.build.directory}/${project.artifactId}-${project.version}-src.tar.gz</file>
+                      <type>tar.gz</type>
+                      <classifier>src</classifier>
+                    </artifact>
+                  </artifacts>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
       <id>assemble</id>
       <build>
         <plugins>
@@ -116,6 +153,8 @@
                 </goals>
                 <phase>package</phase>
                 <configuration>
+                  <attach>true</attach>
+                  <finalName>${project.artifactId}-${project.version}</finalName>
                   <descriptors>
                     <descriptor>src/main/assemblies/binary-release.xml</descriptor>
                   </descriptors>
@@ -216,6 +255,56 @@
                       <sources>
                         <source>
                           <location>${accumulo-top}/bin</location>
+                        </source>
+                      </sources>
+                    </mapping>
+                    <mapping>
+                      <directory>/opt/accumulo/accumulo-${project.version}/proxy</directory>
+                      <sources>
+                        <source>
+                          <location>${accumulo-top}/proxy/README</location>
+                        </source>
+                        <source>
+                          <location>${accumulo-top}/proxy/proxy.properties</location>
+                        </source>
+                      </sources>
+                    </mapping>
+                    <mapping>
+                      <directory>/opt/accumulo/accumulo-${project.version}/proxy/examples</directory>
+                      <sources>
+                        <source>
+                          <location>${accumulo-top}/proxy/examples</location>
+                        </source>
+                      </sources>
+                    </mapping>
+                    <mapping>
+                      <directory>/opt/accumulo/accumulo-${project.version}/proxy/thrift</directory>
+                      <sources>
+                        <source>
+                          <location>${accumulo-top}/proxy/src/main/thrift</location>
+                          <includes>
+                            <include>*.thrift</include>
+                          </includes>
+                        </source>
+                        <source>
+                          <location>${accumulo-top}/proxy/target</location>
+                          <includes>
+                            <include>gen-cpp/**</include>
+                            <include>gen-py/**</include>
+                            <include>gen-rb/**</include>
+                          </includes>
+                        </source>
+                      </sources>
+                    </mapping>
+                    <mapping>
+                      <directory>/opt/accumulo/accumulo-${project.version}/examples/simple</directory>
+                      <recurseDirectories>true</recurseDirectories>
+                      <sources>
+                        <source>
+                          <location>${accumulo-top}/examples/simple</location>
+                          <includes>
+                            <include>src/main/**</include>
+                          </includes>
                         </source>
                       </sources>
                     </mapping>
@@ -399,6 +488,51 @@
                       <excludes>**/.svn/**,src/**</excludes>
                     </data>
                     <data>
+                      <src>${accumulo-top}/proxy/README</src>
+                      <type>file</type>
+                      <mapper>
+                        <type>perm</type>
+                        <prefix>/usr/lib/accumulo/proxy</prefix>
+                      </mapper>
+                      <includes>*.thrift</includes>
+                    </data>
+                    <data>
+                      <src>${accumulo-top}/proxy/proxy.properties</src>
+                      <type>file</type>
+                      <mapper>
+                        <type>perm</type>
+                        <prefix>/usr/lib/accumulo/proxy</prefix>
+                      </mapper>
+                      <includes>*.thrift</includes>
+                    </data>
+                    <data>
+                      <src>${accumulo-top}/proxy/examples</src>
+                      <type>directory</type>
+                      <mapper>
+                        <type>perm</type>
+                        <prefix>/usr/lib/accumulo/proxy/examples</prefix>
+                      </mapper>
+                      <excludes>**/.svn/**</excludes>
+                    </data>
+                    <data>
+                      <src>${accumulo-top}/proxy/src/main/thrift</src>
+                      <type>directory</type>
+                      <mapper>
+                        <type>perm</type>
+                        <prefix>/usr/lib/accumulo/proxy/thrift</prefix>
+                      </mapper>
+                      <includes>*.thrift</includes>
+                    </data>
+                    <data>
+                      <src>${accumulo-top}/proxy/target</src>
+                      <type>directory</type>
+                      <mapper>
+                        <type>perm</type>
+                        <prefix>/usr/lib/accumulo/proxy/thrift</prefix>
+                      </mapper>
+                      <includes>gen-cpp/**,gen-py/**,gen-rb/**</includes>
+                    </data>
+                    <data>
                       <src>${accumulo-top}/bin</src>
                       <type>directory</type>
                       <mapper>
@@ -406,6 +540,16 @@
                         <prefix>/usr/lib/accumulo/bin</prefix>
                         <filemode>755</filemode>
                       </mapper>
+                      <excludes>**/.svn/**</excludes>
+                    </data>
+                    <data>
+                      <src>${accumulo-top}/examples/simple</src>
+                      <type>directory</type>
+                      <mapper>
+                        <type>perm</type>
+                        <prefix>/usr/lib/accumulo/examples/simple</prefix>
+                      </mapper>
+                      <includes>src/main/**</includes>
                       <excludes>**/.svn/**</excludes>
                     </data>
                     <data>
@@ -536,51 +680,6 @@
           </plugin>
         </plugins>
       </build>
-    </profile>
-    <profile>
-      <!-- profile for building against Hadoop 1.0.x
-      Activate by not specifying hadoop.profile -->
-      <id>hadoop-1.0</id>
-      <activation>
-        <property>
-          <name>!hadoop.profile</name>
-        </property>
-      </activation>
-      <dependencies>
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-core</artifactId>
-          <scope>provided</scope>
-        </dependency>
-      </dependencies>
-    </profile>
-    <profile>
-      <!-- profile for building against Hadoop 2.0.x
-      Activate using: mvn -Dhadoop.profile=2.0 -->
-      <id>hadoop-2.0</id>
-      <activation>
-        <property>
-          <name>hadoop.profile</name>
-          <value>2.0</value>
-        </property>
-      </activation>
-      <dependencies>
-        <dependency>
-          <groupId>org.apache.avro</groupId>
-          <artifactId>avro</artifactId>
-          <scope>provided</scope>
-        </dependency>
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-client</artifactId>
-          <scope>provided</scope>
-        </dependency>
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-common</artifactId>
-          <scope>provided</scope>
-        </dependency>
-      </dependencies>
     </profile>
   </profiles>
 </project>

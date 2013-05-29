@@ -17,16 +17,15 @@
 -->
 <assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
-  <id>binary-release</id>
+  <id>bin</id>
   <formats>
     <format>tar.gz</format>
   </formats>
-  <baseDirectory>accumulo-${project.version}</baseDirectory>
   <fileSets>
     <fileSet>
       <directory>../bin</directory>
-      <fileMode>0755</fileMode>
       <directoryMode>0755</directoryMode>
+      <fileMode>0755</fileMode>
     </fileSet>
     <fileSet>
       <directory>../lib</directory>
@@ -37,11 +36,31 @@
       </includes>
     </fileSet>
     <fileSet>
+      <directory>../examples/simple</directory>
+      <outputDirectory>/examples/simple</outputDirectory>
+      <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
+      <includes>
+        <include>src/main/**</include>
+      </includes>
+    </fileSet>
+    <fileSet>
       <directory>../lib/native</directory>
       <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
       <includes>
         <include>**/*.so</include>
+        <include>**/*.jnilib</include>
       </includes>
+    </fileSet>
+    <fileSet>
+      <directory>../server/src/main/c++</directory>
+      <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
+      <excludes>
+        <exclude>**/*.so</exclude>
+        <exclude>**/*.jnilib</exclude>
+      </excludes>
     </fileSet>
     <fileSet>
       <directory>../lib/ext</directory>
@@ -62,6 +81,7 @@
     <fileSet>
       <directory>../docs</directory>
       <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
       <excludes>
         <exclude>src/**</exclude>
       </excludes>
@@ -69,7 +89,7 @@
     <fileSet>
       <directory>../conf</directory>
       <directoryMode>0755</directoryMode>
-      <fileMode>755</fileMode>
+      <fileMode>0755</fileMode>
       <includes>
         <include>examples/**/*.sh</include>
       </includes>
@@ -77,6 +97,7 @@
     <fileSet>
       <directory>../conf</directory>
       <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
       <includes>
         <include>accumulo.policy.example</include>
         <include>examples/**</include>
@@ -103,6 +124,7 @@
     <fileSet>
       <directory>../test</directory>
       <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
       <excludes>
         <exclude>**/.*/**</exclude>
         <exclude>pom.xml</exclude>
@@ -128,13 +150,50 @@
       <outputDirectory>proxy/thrift</outputDirectory>
       <includes>
         <include>gen-cpp/**</include>
-        <include>gen-java/**</include>
         <include>gen-py/**</include>
         <include>gen-rb/**</include>
       </includes>
+    </fileSet>
+    <fileSet>
+      <directory>../proxy</directory>
+      <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
+      <includes>
+        <include>README</include>
+        <include>proxy.properties</include>
+      </includes>
+    </fileSet>
+    <fileSet>
+      <directory>../proxy/examples</directory>
+      <directoryMode>0755</directoryMode>
+      <fileMode>0755</fileMode>
+      <includes>
+        <include>**/*.py</include>
+        <include>**/*.rb</include>
+      </includes>
+    </fileSet>
+    <fileSet>
+      <directory>../proxy/examples</directory>
+      <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
       <excludes>
-        <exclude>*</exclude>
+        <exclude>**/*.py</exclude>
+        <exclude>**/*.rb</exclude>
       </excludes>
+    </fileSet>
+    <fileSet>
+      <directory>../proxy/src/main/thrift</directory>
+      <directoryMode>0755</directoryMode>
+      <fileMode>0644</fileMode>
+      <outputDirectory>proxy/thrift</outputDirectory>
+      <includes>
+        <include>*.thrift</include>
+      </includes>
+    </fileSet>
+    <fileSet>
+      <directory>scripts</directory>
+      <directoryMode>0755</directoryMode>
+      <fileMode>0755</fileMode>
     </fileSet>
   </fileSets>
   <files>
