@@ -21,7 +21,12 @@ import java.util.Collections;
 import java.util.Map.Entry;
 import java.util.UUID;
 
-import org.apache.accumulo.core.client.*;
+import org.apache.accumulo.core.client.BatchWriter;
+import org.apache.accumulo.core.client.BatchWriterConfig;
+import org.apache.accumulo.core.client.Connector;
+import org.apache.accumulo.core.client.IteratorSetting;
+import org.apache.accumulo.core.client.Scanner;
+import org.apache.accumulo.core.client.ZooKeeperInstance;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.conf.Property;
 import org.apache.accumulo.core.data.Key;
@@ -35,40 +40,35 @@ import org.apache.accumulo.core.security.TablePermission;
 import org.apache.commons.io.FileUtils;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class MiniAccumuloClusterTest {
-
-
-
-  private static TemporaryFolder folder = new TemporaryFolder();
+  
+  public static TemporaryFolder folder = new TemporaryFolder();
+  
   private static MiniAccumuloCluster accumulo;
-  private static final String OLD_TEST_TABLE_NAME = "bar";
-  private static final String NEW_TEST_TABLE_NAME = "foo";
-
-  private Connector conn;
-
-  private static TemporaryFolder getFolder() {
-        return folder;
-    }
   
   @BeforeClass
   public static void setupMiniCluster() throws Exception {
+    
     folder.create();
+    
     Logger.getLogger("org.apache.zookeeper").setLevel(Level.ERROR);
     
     accumulo = new MiniAccumuloCluster(folder.getRoot(), "superSecret");
+    
     accumulo.start();
-  }
-  
-  @Before
-  public void setup() throws AccumuloException, AccumuloSecurityException {
-    conn = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector("root", new PasswordToken("superSecret"));
+    
   }
   
   @Test(timeout = 30000)
   public void test() throws Exception {
+    Connector conn = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector("root", new PasswordToken("superSecret"));
+    
     conn.tableOperations().create("table1");
     
     conn.securityOperations().createLocalUser("user1", new PasswordToken("pass1"));
@@ -137,6 +137,9 @@ public class MiniAccumuloClusterTest {
   
   @Test(timeout = 60000)
   public void testPerTableClasspath() throws Exception {
+    
+    Connector conn = new ZooKeeperInstance(accumulo.getInstanceName(), accumulo.getZooKeepers()).getConnector("root", new PasswordToken("superSecret"));
+    
     conn.tableOperations().create("table2");
     
     File jarFile = File.createTempFile("iterator", ".jar");
@@ -175,14 +178,13 @@ public class MiniAccumuloClusterTest {
     
     conn.instanceOperations().removeProperty(Property.VFS_CONTEXT_CLASSPATH_PROPERTY.getKey() + "cx1");
     conn.tableOperations().delete("table2");
+    
   }
   
   @AfterClass
   public static void tearDownMiniCluster() throws Exception {
     accumulo.stop();
-    
-    // Comment this out to have a look at the logs, they will be in /tmp/junit*
-    //folder.delete();
+    // folder.delete();
   }
   
 }
